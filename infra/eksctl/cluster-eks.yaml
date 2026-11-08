@@ -1,0 +1,23 @@
+# Clúster EKS de la cuenta nueva (AWS). Sin NAT gateway: los nodos usan subredes públicas.
+# Esta cuenta no permite crear balanceadores de carga: el tráfico entra por un nodo con IP elástica (ver infra/k8s/eks/).
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+metadata:
+  name: comedor
+  region: us-west-2
+vpc:
+  nat:
+    gateway: Disable
+iam:
+  withOIDC: true
+addons:
+  - name: aws-ebs-csi-driver
+    wellKnownPolicies:
+      ebsCSIController: true
+managedNodeGroups:
+  - name: nodos
+    instanceType: m7i-flex.large
+    desiredCapacity: 1
+    minSize: 0
+    maxSize: 3
+    volumeSize: 40

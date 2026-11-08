@@ -1,0 +1,12 @@
+# Clase de almacenamiento por defecto: discos gp3 con el driver CSI de EBS (la gp2 que trae EKS usa el provisionador antiguo).
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: gp3
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
+provisioner: ebs.csi.aws.com
+parameters:
+  type: gp3
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true

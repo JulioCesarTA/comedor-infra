@@ -1,0 +1,113 @@
+# pagos-tickets-service en GKE (GCP): el servicio con su propio Postgres. Un solo balanceador (el de pagos).
+# Los secretos se crean aparte (secret "pagos-secretos") con infra/gcp/desplegar-gcp.ps1; la imagen sale de GHCR (secret "ghcr").
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pagos-datos
+  namespace: comedor
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-pagos
+  namespace: comedor
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: { app: postgres-pagos }
+  template:
+    metadata:
+      labels: { app: postgres-pagos }
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:16-alpine
+        ports:
+        - containerPort: 5432
+        env:
+        - { name: POSTGRES_USER, valueFrom: { secretKeyRef: { name: pagos-secretos, key: db-user } } }
+        - { name: POSTGRES_PASSWORD, valueFrom: { secretKeyRef: { name: pagos-secretos, key: db-pass } } }
+        - { name: POSTGRES_DB, value: pagos_tickets }
+        volumeMounts:
+        - { name: datos, mountPath: /var/lib/postgresql/data, subPath: pgdata }
+        readinessProbe:
+          exec: { command: ["sh", "-c", "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"] }
+          periodSeconds: 5
+        resources:
+          requests: { memory: 128Mi, cpu: 20m }
+          limits: { memory: 512Mi }
+      volumes:
+      - name: datos
+        persistentVolumeClaim: { claimName: pagos-datos }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-pagos
+  namespace: comedor
+spec:
+  selector: { app: postgres-pagos }
+  ports:
+  - { port: 5432, targetPort: 5432 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pagos-tickets-service
+  namespace: comedor
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: pagos-tickets-service }
+  template:
+    metadata:
+      labels: { app: pagos-tickets-service }
+    spec:
+      imagePullSecrets:
+      - name: ghcr
+      containers:
+      - name: pagos-tickets-service
+        image: ghcr.io/juliocesarta/pagos-tickets-service:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+        env:
+        - { name: APP_ENV, value: production }
+        - { name: APP_DEBUG, value: "false" }
+        - { name: APP_KEY, valueFrom: { secretKeyRef: { name: pagos-secretos, key: app-key } } }
+        - { name: DB_CONNECTION, value: pgsql }
+        - { name: DB_HOST, value: postgres-pagos }
+        - { name: DB_PORT, value: "5432" }
+        - { name: DB_DATABASE, value: pagos_tickets }
+        - { name: DB_USERNAME, valueFrom: { secretKeyRef: { name: pagos-secretos, key: db-user } } }
+        - { name: DB_PASSWORD, valueFrom: { secretKeyRef: { name: pagos-secretos, key: db-pass } } }
+        - { name: STRIPE_SECRET_KEY, valueFrom: { secretKeyRef: { name: pagos-secretos, key: stripe } } }
+        - { name: AWS_REGION, value: us-east-1 }
+        - { name: AWS_ACCESS_KEY_ID, value: test }
+        - { name: AWS_SECRET_ACCESS_KEY, value: test }
+        - { name: AWS_ENDPOINT_URL, value: "http://__EKS_EDGE_IP__:4566" }
+        readinessProbe:
+          httpGet: { path: /health, port: 8080 }
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        resources:
+          requests: { memory: 128Mi, cpu: 20m }
+          limits: { memory: 384Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pagos-tickets-service
+  namespace: comedor
+spec:
+  type: LoadBalancer
+  selector: { app: pagos-tickets-service }
+  ports:
+  - { name: http, port: 8083, targetPort: 8080 }

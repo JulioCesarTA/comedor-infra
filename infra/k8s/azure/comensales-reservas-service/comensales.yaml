@@ -1,0 +1,106 @@
+# comensales-reservas-service en AKS (Azure): el servicio con su propio Postgres. Un solo balanceador (el de comensales).
+# Los secretos se crean aparte (secret "comensales-secretos") con infra/azure/desplegar-azure.sh; la imagen sale de GHCR (pública).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: comensales-datos
+  namespace: comedor
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-comensales
+  namespace: comedor
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: { app: postgres-comensales }
+  template:
+    metadata:
+      labels: { app: postgres-comensales }
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:16-alpine
+        ports:
+        - containerPort: 5432
+        env:
+        - { name: POSTGRES_USER, valueFrom: { secretKeyRef: { name: comensales-secretos, key: db-user } } }
+        - { name: POSTGRES_PASSWORD, valueFrom: { secretKeyRef: { name: comensales-secretos, key: db-pass } } }
+        - { name: POSTGRES_DB, value: comensales_reservas }
+        volumeMounts:
+        - { name: datos, mountPath: /var/lib/postgresql/data, subPath: pgdata }
+        readinessProbe:
+          exec: { command: ["sh", "-c", "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"] }
+          periodSeconds: 5
+        resources:
+          requests: { memory: 128Mi, cpu: 20m }
+          limits: { memory: 512Mi }
+      volumes:
+      - name: datos
+        persistentVolumeClaim: { claimName: comensales-datos }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-comensales
+  namespace: comedor
+spec:
+  selector: { app: postgres-comensales }
+  ports:
+  - { port: 5432, targetPort: 5432 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: comensales-reservas-service
+  namespace: comedor
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: comensales-reservas-service }
+  template:
+    metadata:
+      labels: { app: comensales-reservas-service }
+    spec:
+      containers:
+      - name: comensales-reservas-service
+        image: ghcr.io/juliocesarta/comensales-reservas-service:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+        env:
+        - { name: NODE_ENV, value: production }
+        - { name: PORT, value: "8080" }
+        - { name: DB_USER, valueFrom: { secretKeyRef: { name: comensales-secretos, key: db-user } } }
+        - { name: DB_PASS, valueFrom: { secretKeyRef: { name: comensales-secretos, key: db-pass } } }
+        - { name: DATABASE_URL, value: "postgres://$(DB_USER):$(DB_PASS)@postgres-comensales:5432/comensales_reservas" }
+        - { name: AWS_REGION, value: us-east-1 }
+        - { name: AWS_ACCESS_KEY_ID, value: test }
+        - { name: AWS_SECRET_ACCESS_KEY, value: test }
+        - { name: AWS_ENDPOINT_URL, value: "http://__EKS_EDGE_IP__:4566" }
+        readinessProbe:
+          httpGet: { path: /health, port: 8080 }
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        resources:
+          requests: { memory: 128Mi, cpu: 20m }
+          limits: { memory: 384Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: comensales-reservas-service
+  namespace: comedor
+spec:
+  type: LoadBalancer
+  selector: { app: comensales-reservas-service }
+  ports:
+  - { name: http, port: 8082, targetPort: 8080 }

@@ -1,0 +1,987 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: comedor
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mongo-datos
+  namespace: comedor
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cqrs-datos
+  namespace: comedor
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dynamodb-datos
+  namespace: comedor
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ia-datos
+  namespace: comedor
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 2Gi
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongo
+  namespace: comedor
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: { app: mongo }
+  template:
+    metadata:
+      labels: { app: mongo }
+    spec:
+      enableServiceLinks: false   # evita que Kubernetes inyecte variables tipo DYNAMODB_LOCAL_PORT que rompen a localstack
+      containers:
+      - name: mongo
+        image: mongo:7
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 27017
+        env:
+        - name: MONGO_INITDB_ROOT_USERNAME
+          valueFrom: { secretKeyRef: { name: comedor, key: mongo-user } }
+        - name: MONGO_INITDB_ROOT_PASSWORD
+          valueFrom: { secretKeyRef: { name: comedor, key: mongo-pass } }
+        volumeMounts:
+        - { name: datos, mountPath: /data/db }
+        resources:
+          requests: { memory: 256Mi, cpu: 20m }
+          limits: { memory: 768Mi }
+      volumes:
+      - name: datos
+        persistentVolumeClaim: { claimName: mongo-datos }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongo
+  namespace: comedor
+spec:
+  selector: { app: mongo }
+  ports:
+  - { name: p27017, port: 27017, targetPort: 27017 }
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-cqrs
+  namespace: comedor
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: { app: postgres-cqrs }
+  template:
+    metadata:
+      labels: { app: postgres-cqrs }
+    spec:
+      enableServiceLinks: false   # evita que Kubernetes inyecte variables tipo DYNAMODB_LOCAL_PORT que rompen a localstack
+      containers:
+      - name: postgres-cqrs
+        image: postgres:16-alpine
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_USER
+          valueFrom: { secretKeyRef: { name: comedor, key: cqrs-user } }
+        - name: POSTGRES_PASSWORD
+          valueFrom: { secretKeyRef: { name: comedor, key: cqrs-pass } }
+        - name: POSTGRES_DB
+          value: "cqrs_read"
+        volumeMounts:
+        - { name: datos, mountPath: /var/lib/postgresql/data, subPath: pgdata }
+        resources:
+          requests: { memory: 128Mi, cpu: 20m }
+          limits: { memory: 512Mi }
+      volumes:
+      - name: datos
+        persistentVolumeClaim: { claimName: cqrs-datos }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-cqrs
+  namespace: comedor
+spec:
+  selector: { app: postgres-cqrs }
+  ports:
+  - { name: p5432, port: 5432, targetPort: 5432 }
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dynamodb-local
+  namespace: comedor
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: { app: dynamodb-local }
+  template:
+    metadata:
+      labels: { app: dynamodb-local }
+    spec:
+      enableServiceLinks: false   # evita que Kubernetes inyecte variables tipo DYNAMODB_LOCAL_PORT que rompen a localstack
+      securityContext: { runAsUser: 0 }
+      containers:
+      - name: dynamodb-local
+        image: amazon/dynamodb-local:latest
+        imagePullPolicy: Always
+        command: ["java", "-jar", "DynamoDBLocal.jar", "-sharedDb", "-dbPath", "/data"]
+        ports:
+        - containerPort: 8000
+        volumeMounts:
+        - { name: datos, mountPath: /data }
+        resources:
+          requests: { memory: 256Mi, cpu: 20m }
+          limits: { memory: 768Mi }
+      volumes:
+      - name: datos
+        persistentVolumeClaim: { claimName: dynamodb-datos }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dynamodb-local
+  namespace: comedor
+spec:
+  selector: { app: dynamodb-local }
+  ports:
+  - { name: p8000, port: 8000, targetPort: 8000 }
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: localstack
+  namespace: comedor
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: localstack }
+  template:
+    metadata:
+      labels: { app: localstack }
+    spec:
+      enableServiceLinks: false   # evita que Kubernetes inyecte variables tipo DYNAMODB_LOCAL_PORT que rompen a localstack
+      containers:
+      - name: localstack
+        image: localstack/localstack:3
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 4566
+        env:
+        - name: SERVICES
+          value: "sns,sqs,s3"
+        - name: DEBUG
+          value: "0"
+        - name: AWS_DEFAULT_REGION
+          value: "us-east-1"
+        volumeMounts:
+        - { name: init, mountPath: /etc/localstack/init/ready.d/init.sh, subPath: init-localstack.sh }
+        resources:
+          requests: { memory: 400Mi, cpu: 20m }
+          limits: { memory: 1Gi }
+      volumes:
+      - name: init
+        configMap: { name: init-localstack, defaultMode: 493 }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: localstack
+  namespace: comedor
+spec:
+  selector: { app: localstack }
+  ports:
+  - { name: p4566, port: 4566, targetPort: 4566 }
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: menu-inventario-service
+  namespace: comedor
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: menu-inventario-service }
+  template:
+    metadata:
+      labels: { app: menu-inventario-service }
+    spec:
+      enableServiceLinks: false   # evita que Kubernetes inyecte variables tipo DYNAMODB_LOCAL_PORT que rompen a localstack
+      containers:
+      - name: menu-inventario-service
+        image: 483549541027.dkr.ecr.us-west-2.amazonaws.com/comedor/menu-inventario-service:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          value: "docker"
+        - name: MONGO_USER
+          valueFrom: { secretKeyRef: { name: comedor, key: mongo-user } }
+        - name: MONGO_PASS
+          valueFrom: { secretKeyRef: { name: comedor, key: mongo-pass } }
+        - name: SPRING_DATA_MONGODB_URI
+          value: "mongodb://$(MONGO_USER):$(MONGO_PASS)@mongo:27017/menu_inventario?authSource=admin"
+        - name: AWS_REGION
+          value: "us-east-1"
+        - name: AWS_ACCESS_KEY_ID
+          value: "test"
+        - name: AWS_SECRET_ACCESS_KEY
+          value: "test"
+        - name: AWS_ENDPOINT_URL
+          value: "http://localstack:4566"
+        readinessProbe:
+          httpGet: { path: /actuator/health, port: 8080 }
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          failureThreshold: 18
+        resources:
+          requests: { memory: 512Mi, cpu: 20m }
+          limits: { memory: 1Gi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: menu-inventario-service
+  namespace: comedor
+spec:
+  selector: { app: menu-inventario-service }
+  ports:
+  - { name: p8080, port: 8080, targetPort: 8080 }
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ia-ml-service
+  namespace: comedor
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: { app: ia-ml-service }
+  template:
+    metadata:
+      labels: { app: ia-ml-service }
+    spec:
+      enableServiceLinks: false   # evita que Kubernetes inyecte variables tipo DYNAMODB_LOCAL_PORT que rompen a localstack
+      containers:
+      - name: ia-ml-service
+        image: 483549541027.dkr.ecr.us-west-2.amazonaws.com/comedor/ia-ml-service:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+        env:
+        - name: APP_ENV
+          value: "production"
+        - name: CQRS_USER
+          valueFrom: { secretKeyRef: { name: comedor, key: cqrs-user } }
+        - name: CQRS_PASS
+          valueFrom: { secretKeyRef: { name: comedor, key: cqrs-pass } }
+        - name: CQRS_DATABASE_URL
+          value: "postgresql://$(CQRS_USER):$(CQRS_PASS)@postgres-cqrs:5432/cqrs_read"
+        - name: TELEGRAM_BOT_TOKEN
+          valueFrom: { secretKeyRef: { name: comedor, key: telegram } }
+        - name: TELEGRAM_API_URL
+          value: "https://api.telegram.org"
+        - name: TELEGRAM_RECEPCION
+          value: "n8n"
+        - name: TZ
+          value: "America/La_Paz"
+        - name: KEYCLOAK_URL
+          value: "http://keycloak:8080"
+        - name: KEYCLOAK_REALM
+          value: "comedor-uagrm"
+        - name: KEYCLOAK_ADMIN
+          valueFrom: { secretKeyRef: { name: comedor, key: kc-admin } }
+        - name: KEYCLOAK_ADMIN_PASSWORD
+          valueFrom: { secretKeyRef: { name: comedor, key: kc-admin-pass } }
+        - name: STRIPE_SECRET_KEY
+          valueFrom: { secretKeyRef: { name: comedor, key: stripe } }
+        - name: DYNAMODB_ENDPOINT
+          value: "http://dynamodb-local:8000"
+        - name: COMENSALES_URL
+          value: "http://64.236.51.69:8082"
+        - name: PAGOS_URL
+          value: "http://34.70.76.125:8083"
+        - name: AWS_REGION
+          value: "us-east-1"
+        - name: AWS_ACCESS_KEY_ID
+          value: "test"
+        - name: AWS_SECRET_ACCESS_KEY
+          value: "test"
+        - name: AWS_ENDPOINT_URL
+          value: "http://localstack:4566"
+        readinessProbe:
+          httpGet: { path: /health, port: 8080 }
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          failureThreshold: 18
+        volumeMounts:
+        - { name: datos, mountPath: /data }
+        resources:
+          requests: { memory: 1Gi, cpu: 20m }
+          limits: { memory: 3Gi }
+      volumes:
+      - name: datos
+        persistentVolumeClaim: { claimName: ia-datos }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ia-ml-service
+  namespace: comedor
+spec:
+  selector: { app: ia-ml-service }
+  ports:
+  - { name: p8080, port: 8080, targetPort: 8080 }
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  namespace: comedor
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: api-gateway }
+  template:
+    metadata:
+      labels: { app: api-gateway }
+    spec:
+      enableServiceLinks: false   # evita que Kubernetes inyecte variables tipo DYNAMODB_LOCAL_PORT que rompen a localstack
+      containers:
+      - name: api-gateway
+        image: 483549541027.dkr.ecr.us-west-2.amazonaws.com/comedor/api-gateway:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+        env:
+        - name: PORT
+          value: "8080"
+        - name: AUTH_DISABLED
+          value: "true"
+        - name: KEYCLOAK_URL
+          value: "http://keycloak:8080"
+        - name: KEYCLOAK_REALM
+          value: "comedor-uagrm"
+        - name: KEYCLOAK_ADMIN
+          valueFrom: { secretKeyRef: { name: comedor, key: kc-admin } }
+        - name: KEYCLOAK_ADMIN_PASSWORD
+          valueFrom: { secretKeyRef: { name: comedor, key: kc-admin-pass } }
+        - name: IA_URL
+          value: "http://ia-ml-service:8080"
+        - name: MENU_URL
+          value: "http://menu-inventario-service:8080"
+        - name: COMENSALES_URL
+          value: "http://64.236.51.69:8082"
+        - name: PAGOS_URL
+          value: "http://34.70.76.125:8083"
+        resources:
+          requests: { memory: 128Mi, cpu: 20m }
+          limits: { memory: 512Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway
+  namespace: comedor
+spec:
+  selector: { app: api-gateway }
+  ports:
+  - { name: p8080, port: 8080, targetPort: 8080 }
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: graphql-gateway
+  namespace: comedor
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: graphql-gateway }
+  template:
+    metadata:
+      labels: { app: graphql-gateway }
+    spec:
+      enableServiceLinks: false   # evita que Kubernetes inyecte variables tipo DYNAMODB_LOCAL_PORT que rompen a localstack
+      containers:
+      - name: graphql-gateway
+        image: 483549541027.dkr.ecr.us-west-2.amazonaws.com/comedor/graphql-gateway:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 4000
+        env:
+        - name: PORT
+          value: "4000"
+        - name: MENU_URL
+          value: "http://menu-inventario-service:8080"
+        - name: COMENSALES_URL
+          value: "http://64.236.51.69:8082"
+        - name: PAGOS_URL
+          value: "http://34.70.76.125:8083"
+        resources:
+          requests: { memory: 128Mi, cpu: 20m }
+          limits: { memory: 512Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: graphql-gateway
+  namespace: comedor
+spec:
+  selector: { app: graphql-gateway }
+  ports:
+  - { name: p4000, port: 4000, targetPort: 4000 }
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+  namespace: comedor
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: keycloak }
+  template:
+    metadata:
+      labels: { app: keycloak }
+    spec:
+      enableServiceLinks: false   # evita que Kubernetes inyecte variables tipo DYNAMODB_LOCAL_PORT que rompen a localstack
+      containers:
+      - name: keycloak
+        image: quay.io/keycloak/keycloak:25.0
+        imagePullPolicy: Always
+        command: ["/opt/keycloak/bin/kc.sh", "start-dev", "--import-realm"]
+        ports:
+        - containerPort: 8080
+        env:
+        - name: KEYCLOAK_ADMIN
+          valueFrom: { secretKeyRef: { name: comedor, key: kc-admin } }
+        - name: KEYCLOAK_ADMIN_PASSWORD
+          valueFrom: { secretKeyRef: { name: comedor, key: kc-admin-pass } }
+        - name: KC_HTTP_ENABLED
+          value: "true"
+        - name: KC_HOSTNAME_STRICT
+          value: "false"
+        - name: KC_PROXY_HEADERS
+          value: "xforwarded"
+        volumeMounts:
+        - { name: realm, mountPath: /opt/keycloak/data/import }
+        resources:
+          requests: { memory: 700Mi, cpu: 20m }
+          limits: { memory: 1500Mi }
+      volumes:
+      - name: realm
+        configMap: { name: realm }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  namespace: comedor
+spec:
+  selector: { app: keycloak }
+  ports:
+  - { name: p8080, port: 8080, targetPort: 8080 }
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: n8n
+  namespace: comedor
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: n8n }
+  template:
+    metadata:
+      labels: { app: n8n }
+    spec:
+      enableServiceLinks: false   # evita que Kubernetes inyecte variables tipo DYNAMODB_LOCAL_PORT que rompen a localstack
+      containers:
+      - name: n8n
+        image: n8nio/n8n:latest
+        imagePullPolicy: Always
+        command: ["sh", "-c", "for f in /flows/*.json; do n8n import:workflow --input=$f; done; n8n update:workflow --id=telegramComedor01 --active=true; exec n8n start"]
+        ports:
+        - containerPort: 5678
+        env:
+        - name: N8N_BASIC_AUTH_ACTIVE
+          value: "true"
+        - name: N8N_BASIC_AUTH_USER
+          valueFrom: { secretKeyRef: { name: comedor, key: n8n-user } }
+        - name: N8N_BASIC_AUTH_PASSWORD
+          valueFrom: { secretKeyRef: { name: comedor, key: n8n-pass } }
+        - name: N8N_PORT
+          value: "5678"
+        - name: GENERIC_TIMEZONE
+          value: "America/La_Paz"
+        - name: N8N_BLOCK_ENV_ACCESS_IN_NODE
+          value: "false"
+        - name: TELEGRAM_BOT_TOKEN
+          valueFrom: { secretKeyRef: { name: comedor, key: telegram } }
+        - name: IA_URL
+          value: "http://ia-ml-service:8080"
+        - name: MENU_URL
+          value: "http://menu-inventario-service:8080"
+        - name: PAGOS_URL
+          value: "http://34.70.76.125:8083"
+        volumeMounts:
+        - { name: flujos, mountPath: /flows }
+        resources:
+          requests: { memory: 400Mi, cpu: 20m }
+          limits: { memory: 1Gi }
+      volumes:
+      - name: flujos
+        configMap: { name: flujos-n8n }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: n8n
+  namespace: comedor
+spec:
+  selector: { app: n8n }
+  ports:
+  - { name: p5678, port: 5678, targetPort: 5678 }
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shell
+  namespace: comedor
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: shell }
+  template:
+    metadata:
+      labels: { app: shell }
+    spec:
+      enableServiceLinks: false   # evita que Kubernetes inyecte variables tipo DYNAMODB_LOCAL_PORT que rompen a localstack
+      containers:
+      - name: shell
+        image: 483549541027.dkr.ecr.us-west-2.amazonaws.com/comedor/shell:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 80
+        resources:
+          requests: { memory: 64Mi, cpu: 20m }
+          limits: { memory: 384Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shell
+  namespace: comedor
+spec:
+  selector: { app: shell }
+  ports:
+  - { name: p80, port: 80, targetPort: 80 }
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backoffice-gestion
+  namespace: comedor
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: backoffice-gestion }
+  template:
+    metadata:
+      labels: { app: backoffice-gestion }
+    spec:
+      enableServiceLinks: false   # evita que Kubernetes inyecte variables tipo DYNAMODB_LOCAL_PORT que rompen a localstack
+      containers:
+      - name: backoffice-gestion
+        image: 483549541027.dkr.ecr.us-west-2.amazonaws.com/comedor/backoffice-gestion:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 80
+        resources:
+          requests: { memory: 64Mi, cpu: 20m }
+          limits: { memory: 384Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backoffice-gestion
+  namespace: comedor
+spec:
+  selector: { app: backoffice-gestion }
+  ports:
+  - { name: p80, port: 80, targetPort: 80 }
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: portal-estudiante
+  namespace: comedor
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: portal-estudiante }
+  template:
+    metadata:
+      labels: { app: portal-estudiante }
+    spec:
+      enableServiceLinks: false   # evita que Kubernetes inyecte variables tipo DYNAMODB_LOCAL_PORT que rompen a localstack
+      containers:
+      - name: portal-estudiante
+        image: 483549541027.dkr.ecr.us-west-2.amazonaws.com/comedor/portal-estudiante:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 80
+        resources:
+          requests: { memory: 64Mi, cpu: 20m }
+          limits: { memory: 384Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: portal-estudiante
+  namespace: comedor
+spec:
+  selector: { app: portal-estudiante }
+  ports:
+  - { name: p80, port: 80, targetPort: 80 }
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inteligencia-negocio
+  namespace: comedor
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: inteligencia-negocio }
+  template:
+    metadata:
+      labels: { app: inteligencia-negocio }
+    spec:
+      enableServiceLinks: false   # evita que Kubernetes inyecte variables tipo DYNAMODB_LOCAL_PORT que rompen a localstack
+      containers:
+      - name: inteligencia-negocio
+        image: 483549541027.dkr.ecr.us-west-2.amazonaws.com/comedor/inteligencia-negocio:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3003
+        env:
+        - name: API_INTERNAL_URL
+          value: "http://api-gateway:8080"
+        resources:
+          requests: { memory: 64Mi, cpu: 20m }
+          limits: { memory: 384Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: inteligencia-negocio
+  namespace: comedor
+spec:
+  selector: { app: inteligencia-negocio }
+  ports:
+  - { name: p3003, port: 3003, targetPort: 3003 }
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: entrada-conf
+  namespace: comedor
+data:
+  nginx.conf: |
+    worker_processes 1;
+    events {}
+    http {
+      map $http_upgrade $connection_upgrade { default upgrade; '' close; }
+      server {
+        listen 80;
+        location /.well-known/acme-challenge/ { root /var/www/html; }
+        location / { return 301 https://$host$request_uri; }
+      }
+      server {
+        listen 443 ssl;
+        ssl_certificate /etc/letsencrypt/live/ip-44.228.1.64/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/ip-44.228.1.64/privkey.pem;
+        ssl_protocols TLSv1.2 TLSv1.3;
+        client_max_body_size 25m;
+        location / {
+          proxy_pass http://shell:80;
+          proxy_http_version 1.1;
+          proxy_set_header Host $http_host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto https;
+          proxy_set_header X-Forwarded-Host $http_host;
+          proxy_set_header X-Forwarded-Port $server_port;
+          proxy_set_header Upgrade $http_upgrade;
+          proxy_set_header Connection $connection_upgrade;
+          proxy_read_timeout 120s;
+        }
+      }
+      server {
+        listen 3001 ssl;
+        ssl_certificate /etc/letsencrypt/live/ip-44.228.1.64/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/ip-44.228.1.64/privkey.pem;
+        ssl_protocols TLSv1.2 TLSv1.3;
+        client_max_body_size 25m;
+        location / {
+          proxy_pass http://backoffice-gestion:80;
+          proxy_http_version 1.1;
+          proxy_set_header Host $http_host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto https;
+          proxy_set_header X-Forwarded-Host $http_host;
+          proxy_set_header X-Forwarded-Port $server_port;
+          proxy_set_header Upgrade $http_upgrade;
+          proxy_set_header Connection $connection_upgrade;
+          proxy_read_timeout 120s;
+        }
+      }
+      server {
+        listen 3002 ssl;
+        ssl_certificate /etc/letsencrypt/live/ip-44.228.1.64/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/ip-44.228.1.64/privkey.pem;
+        ssl_protocols TLSv1.2 TLSv1.3;
+        client_max_body_size 25m;
+        location / {
+          proxy_pass http://portal-estudiante:80;
+          proxy_http_version 1.1;
+          proxy_set_header Host $http_host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto https;
+          proxy_set_header X-Forwarded-Host $http_host;
+          proxy_set_header X-Forwarded-Port $server_port;
+          proxy_set_header Upgrade $http_upgrade;
+          proxy_set_header Connection $connection_upgrade;
+          proxy_read_timeout 120s;
+        }
+      }
+      server {
+        listen 3003 ssl;
+        ssl_certificate /etc/letsencrypt/live/ip-44.228.1.64/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/ip-44.228.1.64/privkey.pem;
+        ssl_protocols TLSv1.2 TLSv1.3;
+        client_max_body_size 25m;
+        location / {
+          proxy_pass http://inteligencia-negocio:3003;
+          proxy_http_version 1.1;
+          proxy_set_header Host $http_host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto https;
+          proxy_set_header X-Forwarded-Host $http_host;
+          proxy_set_header X-Forwarded-Port $server_port;
+          proxy_set_header Upgrade $http_upgrade;
+          proxy_set_header Connection $connection_upgrade;
+          proxy_read_timeout 120s;
+        }
+      }
+      server {
+        listen 8080 ssl;
+        ssl_certificate /etc/letsencrypt/live/ip-44.228.1.64/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/ip-44.228.1.64/privkey.pem;
+        ssl_protocols TLSv1.2 TLSv1.3;
+        client_max_body_size 25m;
+        location / {
+          proxy_pass http://api-gateway:8080;
+          proxy_http_version 1.1;
+          proxy_set_header Host $http_host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto https;
+          proxy_set_header X-Forwarded-Host $http_host;
+          proxy_set_header X-Forwarded-Port $server_port;
+          proxy_set_header Upgrade $http_upgrade;
+          proxy_set_header Connection $connection_upgrade;
+          proxy_read_timeout 120s;
+        }
+      }
+      server {
+        listen 8085 ssl;
+        ssl_certificate /etc/letsencrypt/live/ip-44.228.1.64/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/ip-44.228.1.64/privkey.pem;
+        ssl_protocols TLSv1.2 TLSv1.3;
+        client_max_body_size 25m;
+        location / {
+          proxy_pass http://keycloak:8080;
+          proxy_http_version 1.1;
+          proxy_set_header Host $http_host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto https;
+          proxy_set_header X-Forwarded-Host $http_host;
+          proxy_set_header X-Forwarded-Port $server_port;
+          proxy_set_header Upgrade $http_upgrade;
+          proxy_set_header Connection $connection_upgrade;
+          proxy_read_timeout 120s;
+        }
+      }
+      server {
+        listen 5678 ssl;
+        ssl_certificate /etc/letsencrypt/live/ip-44.228.1.64/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/ip-44.228.1.64/privkey.pem;
+        ssl_protocols TLSv1.2 TLSv1.3;
+        client_max_body_size 25m;
+        location / {
+          proxy_pass http://n8n:5678;
+          proxy_http_version 1.1;
+          proxy_set_header Host $http_host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto https;
+          proxy_set_header X-Forwarded-Host $http_host;
+          proxy_set_header X-Forwarded-Port $server_port;
+          proxy_set_header Upgrade $http_upgrade;
+          proxy_set_header Connection $connection_upgrade;
+          proxy_read_timeout 120s;
+        }
+      }
+    }
+    stream {
+      server { listen 4566; proxy_pass localstack:4566; }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: entrada
+  namespace: comedor
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: { app: entrada }
+  template:
+    metadata:
+      labels: { app: entrada }
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      nodeSelector: { entrada: "si" }
+      containers:
+      - name: nginx
+        image: nginx:1.27-alpine
+        command: ["sh", "-c", "until [ -f /etc/letsencrypt/live/ip-44.228.1.64/fullchain.pem ]; do sleep 5; done; nginx -g 'daemon off;' & while sleep 6h; do nginx -s reload; done"]
+        volumeMounts:
+        - { name: conf, mountPath: /etc/nginx/nginx.conf, subPath: nginx.conf }
+        - { name: certs, mountPath: /etc/letsencrypt }
+        - { name: web, mountPath: /var/www/html }
+        resources:
+          requests: { memory: 32Mi, cpu: 20m }
+      volumes:
+      - name: conf
+        configMap: { name: entrada-conf }
+      - name: certs
+        hostPath: { path: /etc/letsencrypt, type: DirectoryOrCreate }
+      - name: web
+        hostPath: { path: /var/www/html, type: DirectoryOrCreate }
+---
+# Certificado de Let's Encrypt para la IP (perfil "shortlived", ~6 días): se pide una vez y se renueva cada 6 horas
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: certificado-inicial
+  namespace: comedor
+spec:
+  backoffLimit: 20
+  template:
+    spec:
+      restartPolicy: OnFailure
+      hostNetwork: true
+      nodeSelector: { entrada: "si" }
+      containers:
+      - name: certbot
+        image: certbot/certbot:latest
+        args: ["certonly", "--standalone", "--ip-address", "44.228.1.64", "--preferred-profile", "shortlived", "--cert-name", "ip-44.228.1.64",
+               "--non-interactive", "--agree-tos", "--register-unsafely-without-email"]
+        volumeMounts:
+        - { name: certs, mountPath: /etc/letsencrypt }
+      volumes:
+      - name: certs
+        hostPath: { path: /etc/letsencrypt, type: DirectoryOrCreate }
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: renovar-certificado
+  namespace: comedor
+spec:
+  schedule: "17 */6 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          nodeSelector: { entrada: "si" }
+          containers:
+          - name: certbot
+            image: certbot/certbot:latest
+            args: ["renew", "--webroot", "-w", "/var/www/html", "--quiet"]
+            volumeMounts:
+            - { name: certs, mountPath: /etc/letsencrypt }
+            - { name: web, mountPath: /var/www/html }
+          volumes:
+          - name: certs
+            hostPath: { path: /etc/letsencrypt, type: DirectoryOrCreate }
+          - name: web
+            hostPath: { path: /var/www/html, type: DirectoryOrCreate }
+
