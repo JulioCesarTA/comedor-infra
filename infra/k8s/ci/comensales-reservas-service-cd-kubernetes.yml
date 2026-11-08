@@ -1,0 +1,37 @@
+name: cd
+# Secretos: AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID, AZURE_WORKLOAD_CLIENT_ID, ACR_NAME, INFRA_REPO_TOKEN
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions: { id-token: write, contents: read }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: JulioCesarTA/comedor-infra
+          token: ${{ secrets.INFRA_REPO_TOKEN }}
+          path: infra-repo
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: ACR login
+        run: az acr login --name ${{ secrets.ACR_NAME }}
+      - name: Build & push
+        run: |
+          IMG=${{ secrets.ACR_NAME }}.azurecr.io/comensales-reservas-service:${{ github.sha }}
+          docker build -t $IMG .
+          docker push $IMG
+      - name: AKS credentials
+        run: az aks get-credentials --resource-group comedor-uagrm-rg --name aks-comedor
+      - name: kubectl apply
+        run: |
+          export ACR_REGISTRY=${{ secrets.ACR_NAME }}
+          export IMAGE_TAG=${{ github.sha }}
+          export AZURE_CLIENT_ID=${{ secrets.AZURE_WORKLOAD_CLIENT_ID }}
+          envsubst < infra-repo/infra/k8s/azure/comensales-reservas-service/deployment.yaml | kubectl apply -f -

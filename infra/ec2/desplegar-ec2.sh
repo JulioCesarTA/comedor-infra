@@ -12,7 +12,7 @@ KC_PASS=$(grep -s ^KEYCLOAK_ADMIN_PASSWORD= respaldo/env.ec2 | cut -d= -f2- || t
 N8N_PASS=$(grep -s ^N8N_BASIC_AUTH_PASSWORD= respaldo/env.ec2 | cut -d= -f2- || true)
 {
   echo "HOST=$EC2_HOST"
-  echo "ECR=$ECR/comedor"
+  echo "ECR=ghcr.io/juliocesarta"
   echo "IP_STACK=$WEB_PRIV"
   echo "IP_MENU=$AWS_BOX_PRIV"
   echo "IP_COMENSALES=$AZURE_PRIV"
@@ -29,7 +29,7 @@ desplegar() {  # rol ip
   until ssh_ $2 'test -f /var/lib/cloud/instance/listo-comedor' 2>/dev/null; do sleep 10; done
   tar czf - $ARCHIVOS $RESPALDOS | ssh_ $2 'rm -rf ~/comedor && mkdir -p ~/comedor && tar xzf - -C ~/comedor'
   scp -i respaldo/ec2-comedor.pem respaldo/env.ec2 ubuntu@$2:comedor/.env.ec2 >/dev/null
-  aws ecr get-login-password --region $R | ssh_ $2 "docker login --username AWS --password-stdin $ECR" 2>&1 | tail -1
+  gh auth token | ssh_ $2 "docker login ghcr.io -u JulioCesarTA --password-stdin" 2>&1 | tail -1 || true   # las imágenes están en GHCR
   ssh_ $2 "bash ~/comedor/infra/ec2/remoto.sh $1"
 }
 ROLES=${*:-menu comensales pagos stack}

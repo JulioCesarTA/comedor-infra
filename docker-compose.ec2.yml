@@ -12,7 +12,7 @@ services:
   mongo:
     ports: !reset []
   menu-inventario-service:
-    image: ${ECR}/menu-inventario-service:v1
+    image: ${ECR}/menu-inventario-service:latest
     depends_on: !reset []
     environment:
       AWS_ENDPOINT_URL: http://${IP_STACK}:4566
@@ -21,7 +21,7 @@ services:
   postgres-comensales:
     ports: !reset []
   comensales-reservas-service:
-    image: ${ECR}/comensales-reservas-service:v1
+    image: ${ECR}/comensales-reservas-service:latest
     depends_on: !reset []
     environment:
       AWS_ENDPOINT_URL: http://${IP_STACK}:4566
@@ -30,7 +30,7 @@ services:
   postgres-pagos:
     ports: !reset []
   pagos-tickets-service:
-    image: ${ECR}/pagos-tickets-service:v1
+    image: ${ECR}/pagos-tickets-service:latest
     depends_on: !reset []
     environment:
       AWS_ENDPOINT_URL: http://${IP_STACK}:4566
@@ -41,7 +41,7 @@ services:
   dynamodb-local:
     ports: !reset []
   ia-ml-service:
-    image: ${ECR}/ia-ml-service:v1
+    image: ${ECR}/ia-ml-service:latest
     depends_on: !reset []
     ports: !reset []
     environment:
@@ -56,7 +56,7 @@ services:
     volumes: !override
       - ./deploy/ec2/realm:/opt/keycloak/data/import:ro
   api-gateway:
-    image: ${ECR}/api-gateway:v1
+    image: ${ECR}/api-gateway:latest
     depends_on: !reset []
     ports: !override ["127.0.0.1:18080:8080"]
     environment:
@@ -64,7 +64,7 @@ services:
       COMENSALES_URL: http://${IP_COMENSALES}:8082
       PAGOS_URL: http://${IP_PAGOS}:8083
   graphql-gateway:
-    image: ${ECR}/graphql-gateway:v1
+    image: ${ECR}/graphql-gateway:latest
     depends_on: !reset []
     ports: !reset []
     environment:
@@ -78,7 +78,7 @@ services:
       PAGOS_URL: http://${IP_PAGOS}:8083
     entrypoint: ["sh", "-c", "for f in /flows/*.json; do n8n import:workflow --input=$$f; done; n8n update:workflow --id=telegramComedor01 --active=true; exec n8n start"]
   shell:
-    image: ${ECR}/shell:v1
+    image: ${ECR}/shell:latest
     ports: !override ["127.0.0.1:13000:80"]
     build:
       args:
@@ -88,17 +88,17 @@ services:
         VITE_BACKOFFICE_URL: https://${HOST}:3001?embedded=1
         VITE_BI_URL: https://${HOST}:3003?embedded=1
   backoffice-gestion:
-    image: ${ECR}/backoffice-gestion:v1
+    image: ${ECR}/backoffice-gestion:latest
     ports: !override ["127.0.0.1:13001:80"]
   portal-estudiante:
-    image: ${ECR}/portal-estudiante:v1
+    image: ${ECR}/portal-estudiante:latest
     ports: !override ["127.0.0.1:13002:80"]
     build:
       args:
         VITE_KEYCLOAK_URL: https://${HOST}:8085
         VITE_API_URL: https://${HOST}:8080
   inteligencia-negocio:
-    image: ${ECR}/inteligencia-negocio:v1
+    image: ${ECR}/inteligencia-negocio:latest
     ports: !override ["127.0.0.1:13003:3003"]
     build:
       args:
