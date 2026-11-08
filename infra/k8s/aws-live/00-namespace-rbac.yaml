@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: comedor
+---
+# ServiceAccount con IRSA (anotación la agregamos tras conocer el OIDC provider del cluster)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: menu-inventario-sa
+  namespace: comedor
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ia-ml-sa
+  namespace: comedor
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: comensales-sa
+  namespace: comedor
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pagos-sa
+  namespace: comedor

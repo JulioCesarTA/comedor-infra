@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: pagos-tickets-service, namespace: comedor, labels: { app: pagos-tickets-service } }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: pagos-tickets-service } }
+  template:
+    metadata:
+      labels: { app: pagos-tickets-service }
+      annotations: { iam.gke.io/gcp-service-account: "pagos-sa@${GCP_PROJECT}.iam.gserviceaccount.com" }
+    spec:
+      serviceAccountName: pagos-sa
+      containers:
+        - name: app
+          image: ${GAR_REGISTRY}/pagos-tickets-service:${IMAGE_TAG}
+          ports: [{ containerPort: 8080 }]
+          envFrom:
+            - configMapRef: { name: pagos-config }
+            - secretRef: { name: pagos-secrets }
+          env:
+            - { name: DB_HOST, value: "127.0.0.1" }  # Cloud SQL Auth Proxy sidecar
+            - { name: DB_PORT, value: "5432" }
+          resources:
+            requests: { cpu: "200m", memory: "256Mi" }
+            limits:   { cpu: "1",    memory: "1Gi" }
+          readinessProbe: { httpGet: { path: /health, port: 8080 }, initialDelaySeconds: 10 }
+          livenessProbe:  { httpGet: { path: /health, port: 8080 }, initialDelaySeconds: 30 }
+        # ---------- SIDECAR: Cloud SQL Auth Proxy ----------
+        - name: cloud-sql-proxy
+          image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.11.4
+          args:
+            - "--structured-logs"
+            - "--port=5432"
+            - "${GCP_PROJECT}:${CLOUD_SQL_REGION}:${CLOUD_SQL_INSTANCE}"
+          securityContext: { runAsNonRoot: true }
+          resources:
+            requests: { cpu: "50m", memory: "64Mi" }
+            limits:   { cpu: "500m", memory: "256Mi" }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: pagos-tickets-service, namespace: comedor }
+spec:
+  selector: { app: pagos-tickets-service }
+  ports: [{ port: 80, targetPort: 8080 }]
+---
+apiVersion: v1
+kind: ConfigMap
+metadata: { name: pagos-config, namespace: comedor }
+data:
+  APP_ENV: "production"
+  AWS_REGION: "us-east-1"
+  AWS_ENDPOINT_URL: "https://api.comedor.uagrm.cloud"   # cross-cloud → DynamoDB en AWS
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pagos-sa
+  namespace: comedor
+  annotations:
+    iam.gke.io/gcp-service-account: "pagos-sa@${GCP_PROJECT}.iam.gserviceaccount.com"
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata: { name: pagos-hpa, namespace: comedor }
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: pagos-tickets-service }
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource: { name: cpu, target: { type: Utilization, averageUtilization: 70 } }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: pagos-ing
+  namespace: comedor
+  annotations:
+    kubernetes.io/ingress.class: "gce"
+    networking.gke.io/managed-certificates: pagos-cert
+spec:
+  rules:
+    - host: pagos.comedor.uagrm.cloud
+      http:
+        paths:
+          - path: /*
+            pathType: ImplementationSpecific
+            backend: { service: { name: pagos-tickets-service, port: { number: 80 } } }

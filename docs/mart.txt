@@ -1,0 +1,147 @@
+Página 1 de 6
+
+Bueno, a desarrollar un sistema en el ámbito del área que ustedes han elegido. Más que sistema, le vamos a llamar una especie de plataforma. Porque va a tener varios elementos, por ejemplo alguien eligió colegios, entonces habrá todo relacionado a colegios.
+
+Alguien dijo gimnasio, habrá todo relacionado a gimnasio, ese es su tema. Ahora, ¿qué va a tener? En primer lugar, ustedes tienen que hacerlo lo más grande posible, o lo más chico posible, pero que ajuste los siguientes conceptos. Ustedes pueden hacerlo crecer tanto como quieran, o pueden hacerlo tan chico como quieran, dentro del área que les ha sido asignada.
+
+El punto es que tiene que aparecer, aplicado en ese proyecto, la siguiente estrategia. Primero, distintos servicios tienen que aparecer. Luego, más de un front.
+
+Y habrá una especie de fiel, que es el que va seguramente. Luego, graf cuele. Ojo, no en todo, lo van a aplicar estrictamente en el sistema de gestión empresarial.
+
+¿Cuál es el sistema de gestión empresarial? Alguien dijo veterinario, entonces gestión de medicina, veterinario. Especialmente para tratar aspectos relacionados a veterinario. Alguien dijo colegios, instituciones, notas.
+
+En toda esa interacción, en el front con la gente, lo demás puede ser apires. ¿Cuál es el beneficio de usar graf cuele frente a apires? ¿Cuál es el problema que tienen cuando usan con apires? No hay ningún problema. A pesar que manejan un montón de endpoints, un montón de apires.
+
+Para continuar, les devuelvo información que no necesariamente la haga. Vamos con otro punto. Vamos también a aplicar lo que vendría a ser agentes inteligentes.
+
+Agentes, es decir, la aplicación de gestión empresarial tiene que tener agentes. Debe estar construida utilizando agentes. Es decir, las funcionalidades de la aplicación deben ser agentes.
+
+No sé si se entiende. Por ejemplo, yo le digo, le doy una misión a mi agente, monitoreo mi negocio. ¿Y qué será monitoreo de mi negocio? Yo solo le voy a definir un montón de skills, en el cual voy a definir qué cosas el agente le tiene que reportar, qué cosas le tiene que conseguir dentro de un determinado proceso.
+
+Otro aspecto más, que vamos a guía local. En alguna parte tiene que haber una guía local. Y esa parte va a ser el dispositivo móvil.
+
+Y también en el front web, el navegador debería tener su guía local. Y también ambos aspectos deberían permitir funcionamiento offline. Es decir, no necesariamente con conexión a internet, la
+
+Página 2 de 6
+
+aplicación web.
+
+El navegador o la aplicación web también. ¿Cómo lo resuelven eso? Con aplicaciones web. Mecanismos de sincronización que permitan, por ejemplo, que resuelvan problemas de hidem potencia.
+
+Se registra dos veces por problemas de falla una transacción. La aplicación tiene que estar diseñada para funcionar en lugares en que haya pésimas condiciones de internet. Una cosa es que no haya internet.
+
+Otra cosa es que haya internet, pero terriblemente inestable, que puede confundir fuertemente a la aplicación. Al usar microservicios, deben aplicar transacciones transversales. ¿Qué significa eso? Yo ejecuto una acción y debería en esa acción por lo menos intervenir tres microservicios.
+
+Por decirlo, quiero realizar una devolución de un producto. Entrará el microservicio de ventas, entrará el microservicio de inventario y entrará el microservicio de facturación. Pregúntense, este microservicio hizo su trabajo completo, este microservicio también hizo su trabajo completo, pero este último no consigo hacerlo por problemas de internet o cualquier otra situación.
+
+¿Cómo lo resuelven? ¿Rollback es posible en un microservicio? En una aplicación monolítica o en un microservicio solito, un rollback sí es posible. Y vuelve. Si en caso no terminó de ejecutarse la acción.
+
+¿Pero qué ocurre cuando es un microservicio? Debe buscar un patrón de arquitectura que le sufra simple, pura sugerencia sagra. Bueno, ¿qué otro detalle más necesitamos? Bueno, necesitamos aplicar en alguna parte de su proyecto Machine Learning más Deep Learning.
+
+Machine Learning por un lado, tanto con los modelos supervisados como también los no supervisados.
+
+Deep Learning por lo menos basado en TensorFlow. Orientados al procesamiento de imágenes o videos. Luego, también necesitamos que en alguna parte aplique automatización.
+
+Y eso lo van a hacer a su credencia N8n. Cuando lo de automatización, por ejemplo, podríamos tener un proceso, por decirlo. Algún pedido por WhatsApp.
+
+El pedido por WhatsApp es recibido seguramente por su sistema de gestión empresarial automáticamente. El sistema de gestión empresarial automáticamente de repente hace una factura. Pero la factura no lo hace, lo va a pasar a otro microservicio.
+
+Y luego ahí se lo pasará a otro para enviar otro email. Entonces estamos utilizando varios procesos 100% automatizados. Hay trucos Deep Learning o como quieran llamarlo que tienen que aplicar totalmente automatizados.
+
+Una salida en N8n. Otra característica que debe tener nuestra aplicación es el tema de reportes
+
+Página 3 de 6
+
+generativos. ¿Cómo son los reportes generativos? A través de peticiones de lenguaje natural.
+
+A través de audio, yo le digo, necesito saber lo que es lo que me tienen que pagar mañana en tal zona. El reporte debo poderlo mostrar en pantalla. Debo poderlo visualizar a Excel o cualquier otro mecanismo.
+
+¿Qué más? ¿Qué más interés les gustaría que le agreguemos? ¿Cuánto uno más? ¿Qué más? El tema que les ha sido asignado, ustedes lo pueden hacer crecer tanto como vean necesario. O si no, también lo pueden hacer más chico que vean necesario. El punto es que todo esto que estoy hablando, en alguna manera, en alguna parte lo tienen que aplicar.
+
+Y obviamente, no tienen que aplicarlo por aplicar. Tiene que ver la pertinencia en sí. Por eso cada uno tiene un tema muy distinto.
+
+Otro que me interesa que examine es el protocolo NCP. En todos esos aspectos tengan cuidado, con cuidado que lo dejen abierto y introduzcan inyección de SQL a través de comandos de OAuth. O en los reportes generativos.
+
+O en algún lugar, y ahí estamos. Bien estamos. ¿Listo? Bien, algo más.
+
+No sé cuántos microservicios harán. Podrán ser uno, podrán ser cien. El tema es que deben tomar en cuenta los siguientes aspectos.
+
+No pueden ser menos de tres. Eso es una contradicción. ¿Por qué no pueden ser menos de tres? Porque vamos a ocupar tres lenguajes distintos para cada microservicio.
+
+Uno va a ser el poderoso Springbok. Otro va a ser NJS, N-E-S-P, no el clásico. N-E-S-P.J-S. N-E-S-P.J-S. Y el tercero va a ser un clásico que muchos están olvidando y tenemos todavía una gran cantidad de sitios web que corren eso.
+
+PHP. Los otros microservicios, podemos usar otros lenguajes. Pero esos tres sí o sí tienen que aparecer.
+
+Ahora, otros microservicios ustedes pueden hacer, esos tres sí tienen que aparecer. No es que solo esos tres. Esos tres deben aparecer.
+
+Pero ustedes pueden ocupar otros lenguajes. Bueno, en el lado del front también vamos a usar por lo menos tres. Uno, Angular.
+
+Dos, React. Y un tercero. Esos dos.
+
+Ahora veamos. Bases de datos. Tienen que aparecer por lo menos tres bases de datos particulares.
+
+Uno, en el ámbito relacional. El clásico Postgres. O cualquier otra base de datos relacional.
+
+Página 4 de 6
+
+Pero no, por ejemplo, MySQL. O cosas correctísimas. Otra es para arriba.
+
+Puede ser SQL, puede ser Oracle. Luego, otra base de datos que tienen que ocupar es MongoDB. Y otra base de datos que tienen que ocupar es DynamoDB.
+
+Y otra base de datos que tienen que ocupar es MongoDB. El DynamoDB obviamente está en MongoDB. Y el de MongoDB, bueno, sería la base de datos.
+
+Bien, ahora sí. Dos detalles más. Tienen que usar mecanismos que permitan acceso a la aplicación por una sola entrada.
+
+Es decir, el usuario, por ejemplo, podría tener la necesidad de que usted construya varias aplicaciones. Una aplicación, por decirle, para inteligencia de negocios. Vía Machine Learning genera una gran cantidad de dashboard.
+
+Inteligencia de negocios. Esa puede ser una aplicación. Otra, digamos, es una aplicación módica.
+
+Otra es el clásico sistema de gestión empresarial. Y son varias entradas. La idea es que el usuario debe logrearse de una sola cuenta, con un solo login, un solo password, y poder acceder a ello sin ningún inconveniente.
+
+No tendría que estar pregando para pasar de una aplicación hacia otra aplicación. Estando en esta aplicación, quiero ir a la de allá. No tengo lugar allá.
+
+Aquí es demasiado rápido. Exacto. Eso lo tienen que tomar en cuenta.
+
+Otro aspecto. Hace rato, por ejemplo, hemos hablado de una cosa. Ahora vamos a hablar de arquitectura.
+
+Debemos encontrar, por lo menos, tres tipos de arquitectura dentro de lo que es el lado del código. Una. La clásica.
+
+Cuando hablamos de arquitectura, hay cuatro, por lo menos, niveles o tipos de arquitectura. Uno, arquitectura del lado del baquete. Dos, arquitectura en el lado del promete.
+
+Tres, arquitectura a nivel de datos. Porque la base de datos va a estar fragmentada. Y vamos a tener algún mecanismo, por ejemplo, de consulta de reportes, donde hay reportes que sacamos con mucha frecuencia.
+
+Y si esos datos están en diferentes microservicios. Y yo no puedo aplicar Jony, porque no estaría en ese problema. Entonces, ¿cómo lo resolvemos? Hay que buscar un mecanismo para que tengamos una arquitectura.
+
+Y la cuarta, ¿cuál sería? Arquitectura de despliegue. Esa cuarta tiene que estar, obviamente,
+
+Página 5 de 6
+
+presente. Ahora, hablemos exclusivamente de la arquitectura del lado del código.
+
+Hemos dicho que podemos ocupar, debemos ver, por lo menos, tres. Una, la típica DDD. Dos, la clásica hexagonal.
+
+Y la tercera, arquitectura CLIA. Esas tres deben aparecer, de alguna manera, en su... CLIA, hexagonal, DDD. ¿Listo? Por lo menos.
+
+Sobre esas, ustedes pueden aplicar cualquier otra arquitectura que vean. CLIA. CLIA.
+
+Sí, arquitectura DDD. Bien, tienen acá alguna pregunta. Bueno, al no leer la fecha... Si dicen menos de un mes, eso sí.
+
+El código es lo de menos. ¿Por qué? Porque hoy día... Si estamos usando... ¿Dónde vas a subir el número? Si la arquitectura está mal planteada, no vas a hacer absolutamente nada de mal. ¿Por qué tienen que hacer muchas cosas? Porque muchas de esas cosas, la CLIA lo hace muy bien.
+
+¿Qué tienen que empezar a utilizar? ¿Qué es lo que están haciendo? Ustedes saben que el trabajo del código del programador cada vez se hace menos. O, viendo desde otro lado, el programador cada vez puede hacer más usando la CLIA. El desafío central es... Hay muchas cosas.
+
+¿Por qué es necesario que las constamos? Yo sé que muchas de ustedes sí las constan, pero hay algunos que no las constan. Y es triste que salgan de la universidad sin siquiera haberlo mirado mínimamente. Entonces, ¿qué deben hacer? Fecha.
+
+¿Cuánto tiempo necesitan? Sí. Sí. Enero.
+
+¿Cuántas semanas? ¿Cuándo serían? El 12. Pero para el jueves pueden... ¿Cuántas semanas? ¿El 12? ¿El 12? Nada, nada. Son cuatro semanas.
+
+¿Cuántas semanas? Cuenta algo de atrás. ¿Cuándo serían? ¿Cuándo serían? Sí, mamá. ¿El 12? ¿El 12? Sí.
+
+¡Puta! ¿Quién iba a hablar? ¿Qué van a traer para la próxima clase? ¿Cada grupo? ¿La próxima clase? La próxima clase va a traer una versión preliminar especificando dónde es que van a aplicar cada uno de estos grupos. Ya no sé esto, esto acá, esto acá, esto allá, y así suficientemente. Simplemente eso.
+
+Eso lo traen escrito. El primer paso es el cierre del grupo o los significados, ¿cierto? El proyecto Vamos a usar icónex. Es una metodología algo antigua pero que está bastante histórica.
+
+Bien, triámonos a ver.
+
+Página 6 de 6

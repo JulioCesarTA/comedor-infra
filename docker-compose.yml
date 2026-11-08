@@ -1,0 +1,343 @@
+# ================================================================
+# Comedor UAGRM — stack local completo
+# Simula AWS/Azure/GCP localmente con LocalStack + DynamoDB Local
+# ================================================================
+services:
+
+  # ---------------- INFRA DE DATOS ----------------
+  mongo:
+    image: mongo:7
+    container_name: comedor-mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+      MONGO_INITDB_DATABASE: ${MONGO_DB_MENU}
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    networks: [comedor-net]
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  postgres-comensales:
+    image: postgres:16-alpine
+    container_name: comedor-postgres-comensales
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_COMENSALES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_COMENSALES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_COMENSALES_DB}
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-comensales-data:/var/lib/postgresql/data
+    networks: [comedor-net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_COMENSALES_USER} -d ${POSTGRES_COMENSALES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  postgres-pagos:
+    image: postgres:16-alpine
+    container_name: comedor-postgres-pagos
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_PAGOS_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PAGOS_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_PAGOS_DB}
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres-pagos-data:/var/lib/postgresql/data
+    networks: [comedor-net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_PAGOS_USER} -d ${POSTGRES_PAGOS_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  postgres-cqrs:
+    image: postgres:16-alpine
+    container_name: comedor-postgres-cqrs
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_CQRS_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_CQRS_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_CQRS_DB}
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres-cqrs-data:/var/lib/postgresql/data
+    networks: [comedor-net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_CQRS_USER} -d ${POSTGRES_CQRS_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  dynamodb-local:
+    image: amazon/dynamodb-local:latest
+    container_name: comedor-dynamodb-local
+    restart: unless-stopped
+    command: ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-dbPath", "/data"]
+    user: root
+    ports:
+      - "8000:8000"
+    volumes:
+      - dynamodb-data:/data
+    networks: [comedor-net]
+
+  localstack:
+    image: localstack/localstack:3
+    container_name: comedor-localstack
+    restart: unless-stopped
+    environment:
+      SERVICES: ${LOCALSTACK_SERVICES}
+      DEBUG: 0
+      AWS_DEFAULT_REGION: ${AWS_REGION}
+      PERSISTENCE: 1
+    ports:
+      - "4566:4566"
+    volumes:
+      - localstack-data:/var/lib/localstack
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./eventbus/infra/init-localstack.sh:/etc/localstack/init/ready.d/init.sh:ro
+    networks: [comedor-net]
+
+  # ---------------- AUTH ----------------
+  keycloak:
+    image: quay.io/keycloak/keycloak:25.0
+    container_name: comedor-keycloak
+    restart: unless-stopped
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_HTTP_ENABLED: "true"
+    ports:
+      - "8085:8080"
+    volumes:
+      - ./auth/keycloak:/opt/keycloak/data/import:ro
+    networks: [comedor-net]
+
+  # ---------------- AUTOMATIZACIÓN ----------------
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: comedor-n8n
+    restart: unless-stopped
+    environment:
+      N8N_BASIC_AUTH_ACTIVE: "true"
+      N8N_BASIC_AUTH_USER: ${N8N_BASIC_AUTH_USER}
+      N8N_BASIC_AUTH_PASSWORD: ${N8N_BASIC_AUTH_PASSWORD}
+      N8N_HOST: ${N8N_HOST}
+      N8N_PORT: ${N8N_PORT}
+      WEBHOOK_URL: http://localhost:5678/
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      GENERIC_TIMEZONE: America/La_Paz
+    ports:
+      - "5678:5678"
+    volumes:
+      - n8n-data:/home/node/.n8n
+      - ./automation/n8n/flows:/flows:ro
+    networks: [comedor-net]
+
+  # ---------------- MICROSERVICIOS DE NEGOCIO ----------------
+  menu-inventario-service:
+    build:
+      context: ../menu-inventario-service
+      dockerfile: Dockerfile
+    container_name: comedor-menu-inventario
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATA_MONGODB_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongo:27017/${MONGO_DB_MENU}?authSource=admin
+      AWS_REGION: ${AWS_REGION}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_ENDPOINT_URL: ${AWS_ENDPOINT_URL}
+    ports:
+      - "${PORT_MENU_INVENTARIO}:8080"
+    depends_on:
+      mongo: { condition: service_healthy }
+      localstack: { condition: service_started }
+    networks: [comedor-net]
+
+  comensales-reservas-service:
+    build:
+      context: ../comensales-reservas-service
+      dockerfile: Dockerfile
+    container_name: comedor-comensales-reservas
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 8080
+      DATABASE_URL: postgres://${POSTGRES_COMENSALES_USER}:${POSTGRES_COMENSALES_PASSWORD}@postgres-comensales:5432/${POSTGRES_COMENSALES_DB}
+      AWS_REGION: ${AWS_REGION}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_ENDPOINT_URL: ${AWS_ENDPOINT_URL}
+    ports:
+      - "${PORT_COMENSALES_RESERVAS}:8080"
+    depends_on:
+      postgres-comensales: { condition: service_healthy }
+      localstack: { condition: service_started }
+    networks: [comedor-net]
+
+  pagos-tickets-service:
+    build:
+      context: ../pagos-tickets-service
+      dockerfile: Dockerfile
+    container_name: comedor-pagos-tickets
+    restart: unless-stopped
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      APP_KEY: base64:ZGV2ZWxvcG1lbnRfa2V5X2NoYW5nZV9pbl9wcm9kdWN0aW9uX3Bscw==
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres-pagos
+      DB_PORT: 5432
+      DB_DATABASE: ${POSTGRES_PAGOS_DB}
+      DB_USERNAME: ${POSTGRES_PAGOS_USER}
+      DB_PASSWORD: ${POSTGRES_PAGOS_PASSWORD}
+      AWS_REGION: ${AWS_REGION}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_ENDPOINT_URL: ${AWS_ENDPOINT_URL}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+    ports:
+      - "${PORT_PAGOS_TICKETS}:8080"
+    depends_on:
+      postgres-pagos: { condition: service_healthy }
+      localstack: { condition: service_started }
+    networks: [comedor-net]
+
+  ia-ml-service:
+    build:
+      context: ../ia-ml-service
+      dockerfile: Dockerfile
+    container_name: comedor-ia-ml
+    restart: unless-stopped
+    environment:
+      APP_ENV: production
+      CQRS_DATABASE_URL: postgresql://${POSTGRES_CQRS_USER}:${POSTGRES_CQRS_PASSWORD}@postgres-cqrs:5432/${POSTGRES_CQRS_DB}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_API_URL: ${TELEGRAM_API_URL:-https://api.telegram.org}
+      TELEGRAM_RECEPCION: ${TELEGRAM_RECEPCION:-n8n}
+      TZ: America/La_Paz
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM}
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      DYNAMODB_ENDPOINT: ${DYNAMODB_ENDPOINT}
+      AWS_REGION: ${AWS_REGION}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_ENDPOINT_URL: ${AWS_ENDPOINT_URL}
+    ports:
+      - "${PORT_IA_ML}:8080"
+    depends_on:
+      postgres-cqrs: { condition: service_healthy }
+      dynamodb-local: { condition: service_started }
+      localstack: { condition: service_started }
+    volumes:
+      - ia-data:/data
+    networks: [comedor-net]
+
+  # ---------------- GATEWAYS ----------------
+  api-gateway:
+    build:
+      context: ../comedor-clientes/gateway/api-gateway
+      dockerfile: Dockerfile
+    container_name: comedor-api-gateway
+    restart: unless-stopped
+    environment:
+      PORT: 8080
+      AUTH_DISABLED: "true"
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM}
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      MENU_URL: http://menu-inventario-service:8080
+      COMENSALES_URL: http://comensales-reservas-service:8080
+      PAGOS_URL: http://pagos-tickets-service:8080
+      IA_URL: http://ia-ml-service:8080
+    ports:
+      - "${PORT_API_GATEWAY}:8080"
+    depends_on:
+      - menu-inventario-service
+      - comensales-reservas-service
+      - pagos-tickets-service
+      - ia-ml-service
+    networks: [comedor-net]
+
+  graphql-gateway:
+    build:
+      context: ../comedor-clientes/gateway/graphql-gateway
+      dockerfile: Dockerfile
+    container_name: comedor-graphql-gateway
+    restart: unless-stopped
+    environment:
+      PORT: 4000
+      MENU_URL: http://menu-inventario-service:8080
+      COMENSALES_URL: http://comensales-reservas-service:8080
+      PAGOS_URL: http://pagos-tickets-service:8080
+    ports:
+      - "${PORT_GRAPHQL_GATEWAY}:4000"
+    depends_on:
+      - menu-inventario-service
+      - comensales-reservas-service
+      - pagos-tickets-service
+    networks: [comedor-net]
+
+  # ---------------- FRONTENDS ----------------
+  shell:
+    build: { context: ../comedor-clientes/frontend/shell, dockerfile: Dockerfile }
+    container_name: comedor-shell
+    restart: unless-stopped
+    ports: ["${PORT_SHELL}:80"]
+    networks: [comedor-net]
+
+  backoffice-gestion:
+    build: { context: ../comedor-clientes/frontend/backoffice-gestion, dockerfile: Dockerfile }
+    container_name: comedor-backoffice
+    restart: unless-stopped
+    ports: ["${PORT_BACKOFFICE}:80"]
+    networks: [comedor-net]
+
+  portal-estudiante:
+    build: { context: ../comedor-clientes/frontend/portal-estudiante, dockerfile: Dockerfile }
+    container_name: comedor-portal
+    restart: unless-stopped
+    ports: ["${PORT_PORTAL_ESTUDIANTE}:80"]
+    networks: [comedor-net]
+
+  inteligencia-negocio:
+    build: { context: ../comedor-clientes/frontend/inteligencia-negocio, dockerfile: Dockerfile }
+    container_name: comedor-bi
+    restart: unless-stopped
+    environment:
+      API_INTERNAL_URL: http://api-gateway:8080
+    ports: ["${PORT_INTELIGENCIA_NEGOCIO}:3003"]
+    networks: [comedor-net]
+
+networks:
+  comedor-net:
+    driver: bridge
+
+volumes:
+  ia-data:
+  mongo-data:
+  postgres-comensales-data:
+  postgres-pagos-data:
+  postgres-cqrs-data:
+  dynamodb-data:
+  localstack-data:
+  n8n-data:

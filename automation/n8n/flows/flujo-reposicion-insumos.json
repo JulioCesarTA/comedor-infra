@@ -1,0 +1,66 @@
+{
+  "name": "Flujo 2 - Reposición de insumos (nocturno)",
+  "nodes": [
+    {
+      "id": "cron",
+      "name": "Cada noche 23:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300],
+      "parameters": { "rule": { "interval": [{ "field": "cronExpression", "expression": "0 23 * * *" }] } }
+    },
+    {
+      "id": "stock-bajo",
+      "name": "GET /insumos/stock-bajo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 300],
+      "parameters": { "url": "={{ ($env.MENU_URL || 'http://menu-inventario-service:8080') + '/insumos/stock-bajo' }}" }
+    },
+    {
+      "id": "generar-orden",
+      "name": "Generar borrador OC",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300],
+      "parameters": {
+        "jsCode": "const items = $json.map(i => ({ insumoId: i.id, nombre: i.nombre, cantidad: Math.max(10, i.stockMinimo * 2) }));\nreturn [{ json: { fecha: new Date().toISOString(), items, estado: 'borrador' } }];"
+      }
+    },
+    {
+      "id": "email-admin",
+      "name": "Email al administrador",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [900, 220],
+      "parameters": {
+        "fromEmail": "automatizacion@comedor.uagrm.edu.bo",
+        "toEmail": "admin@comedor.uagrm.edu.bo",
+        "subject": "Orden de compra (borrador) — aprobar",
+        "text": "={{ JSON.stringify($json.items, null, 2) }}"
+      }
+    },
+    {
+      "id": "registrar-pago",
+      "name": "POST /proveedores/pagos",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 380],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.PAGOS_URL || 'http://pagos-tickets-service:8080') + '/proveedores/pagos' }}",
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}"
+      }
+    }
+  ],
+  "connections": {
+    "Cada noche 23:00": { "main": [[{ "node": "GET /insumos/stock-bajo", "type": "main", "index": 0 }]] },
+    "GET /insumos/stock-bajo": { "main": [[{ "node": "Generar borrador OC", "type": "main", "index": 0 }]] },
+    "Generar borrador OC": { "main": [[
+      { "node": "Email al administrador", "type": "main", "index": 0 },
+      { "node": "POST /proveedores/pagos", "type": "main", "index": 0 }
+    ]] }
+  }
+}

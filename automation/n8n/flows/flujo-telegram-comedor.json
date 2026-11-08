@@ -1,0 +1,76 @@
+{
+  "id": "telegramComedor01",
+  "name": "Telegram Comedor UAGRM",
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "nodes": [
+    {
+      "id": "n1",
+      "name": "Cada 10 segundos",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0],
+      "parameters": { "rule": { "interval": [{ "field": "seconds", "secondsInterval": 10 }] } }
+    },
+    {
+      "id": "n2",
+      "name": "Leer mensajes de Telegram",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [240, 0],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const memoria = $getWorkflowStaticData('global');\nlet r;\ntry {\n  r = await this.helpers.httpRequest({\n    url: `https://api.telegram.org/bot${$env.TELEGRAM_BOT_TOKEN}/getUpdates`,\n    qs: { offset: memoria.offset || 0, timeout: 0, allowed_updates: JSON.stringify(['message', 'callback_query']) },\n    json: true,\n  });\n} catch (e) {\n  return [];\n}\nconst novedades = r.result || [];\nif (novedades.length) memoria.offset = novedades[novedades.length - 1].update_id + 1;\nreturn novedades.map((u) => ({ json: u }));"
+      }
+    },
+    {
+      "id": "n3",
+      "name": "Lógica del comedor (ia-ml)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.IA_URL || 'http://ia-ml-service:8080') + '/agentes/telegram/evento' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": { "timeout": 60000 }
+      }
+    },
+    {
+      "id": "n4",
+      "name": "Separar respuestas",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 0],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "return $input.all().flatMap((i) => (i.json.acciones || []).map((a) => ({ json: a })));"
+      }
+    },
+    {
+      "id": "n5",
+      "name": "Responder en Telegram",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [960, 0],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/{{ $json.metodo }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.datos) }}"
+      }
+    }
+  ],
+  "connections": {
+    "Cada 10 segundos": { "main": [[{ "node": "Leer mensajes de Telegram", "type": "main", "index": 0 }]] },
+    "Leer mensajes de Telegram": { "main": [[{ "node": "Lógica del comedor (ia-ml)", "type": "main", "index": 0 }]] },
+    "Lógica del comedor (ia-ml)": { "main": [[{ "node": "Separar respuestas", "type": "main", "index": 0 }]] },
+    "Separar respuestas": { "main": [[{ "node": "Responder en Telegram", "type": "main", "index": 0 }]] }
+  }
+}

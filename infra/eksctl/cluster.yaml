@@ -1,0 +1,16 @@
+# Cluster EKS de la cuenta nueva. Sin NAT gateway (ahorra ~32 USD/mes): los nodos usan subredes públicas.
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+metadata:
+  name: comedor
+  region: us-west-2
+vpc:
+  nat:
+    gateway: Disable
+managedNodeGroups:
+  - name: nodos2
+    instanceType: m7i-flex.large
+    desiredCapacity: 2
+    minSize: 0
+    maxSize: 3
+    volumeSize: 30

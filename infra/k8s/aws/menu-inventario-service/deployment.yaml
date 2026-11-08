@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: menu-inventario-service
+  namespace: comedor
+  labels: { app: menu-inventario-service }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: menu-inventario-service } }
+  template:
+    metadata: { labels: { app: menu-inventario-service } }
+    spec:
+      serviceAccountName: menu-inventario-sa   # usa IRSA para DynamoDB/SNS
+      containers:
+        - name: app
+          image: ${ECR_REGISTRY}/menu-inventario-service:${IMAGE_TAG}
+          ports: [{ containerPort: 8080 }]
+          envFrom:
+            - configMapRef: { name: menu-inventario-config }
+            - secretRef: { name: menu-inventario-secrets }
+          resources:
+            requests: { cpu: "250m", memory: "512Mi" }
+            limits:   { cpu: "1",    memory: "1Gi" }
+          readinessProbe:
+            httpGet: { path: /actuator/health/readiness, port: 8080 }
+            initialDelaySeconds: 20
+          livenessProbe:
+            httpGet: { path: /actuator/health/liveness, port: 8080 }
+            initialDelaySeconds: 40

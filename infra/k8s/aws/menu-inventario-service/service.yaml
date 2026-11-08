@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Service
+metadata: { name: menu-inventario-service, namespace: comedor }
+spec:
+  selector: { app: menu-inventario-service }
+  type: ClusterIP
+  ports: [{ port: 80, targetPort: 8080, name: http }]

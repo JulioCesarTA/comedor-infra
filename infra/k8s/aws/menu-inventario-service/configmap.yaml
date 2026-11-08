@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata: { name: menu-inventario-config, namespace: comedor }
+data:
+  SPRING_PROFILES_ACTIVE: "prod"
+  AWS_REGION: "us-east-1"
+  AWS_SNS_TOPIC_DOMINIO_MENU_ARN: "arn:aws:sns:us-east-1:${AWS_ACCOUNT_ID}:dominio-menu"

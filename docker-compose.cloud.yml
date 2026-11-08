@@ -1,0 +1,41 @@
+# Código en local + datos/mensajería en la nube (RDS, Atlas, DynamoDB, SNS/SQS).
+# Uso:  docker compose --env-file .env --env-file .env.cloud -f docker-compose.yml -f docker-compose.cloud.yml up -d --build <servicios>
+# (ver `make up-cloud`). Las BDs/localstack locales NO se levantan.
+services:
+  menu-inventario-service:
+    depends_on: !reset []
+    environment:
+      SPRING_DATA_MONGODB_URI: ${MONGO_ATLAS_URI}
+      aws_sns_topicDominioMenuArn: arn:aws:sns:us-west-2:483549541027:dominio-menu
+  comensales-reservas-service:
+    depends_on: !reset []
+    environment:
+      DATABASE_URL: postgres://postgres:${RDS_PASSWORD_URL}@${RDS_HOST}:5432/comensales_reservas
+  pagos-tickets-service:
+    depends_on: !reset []
+    environment:
+      DB_HOST: ${RDS_HOST}
+      DB_DATABASE: pagos_tickets
+      DB_USERNAME: postgres
+      DB_PASSWORD: ${RDS_PASSWORD}
+  ia-ml-service:
+    depends_on: !reset []
+    environment:
+      CQRS_DATABASE_URL: postgresql://postgres:${RDS_PASSWORD_URL}@${RDS_HOST}:5432/cqrs_read
+      KEYCLOAK_URL: ${KEYCLOAK_CLOUD_URL}
+  # Keycloak desplegado en la EC2 (cuentas y roles reales); el Keycloak local no se usa.
+  api-gateway:
+    environment:
+      KEYCLOAK_URL: ${KEYCLOAK_CLOUD_URL}
+  shell:
+    build:
+      args:
+        VITE_KEYCLOAK_URL: ${KEYCLOAK_CLOUD_URL}
+  portal-estudiante:
+    build:
+      args:
+        VITE_KEYCLOAK_URL: ${KEYCLOAK_CLOUD_URL}
+  inteligencia-negocio:
+    build:
+      args:
+        NEXT_PUBLIC_KEYCLOAK_URL: ${KEYCLOAK_CLOUD_URL}

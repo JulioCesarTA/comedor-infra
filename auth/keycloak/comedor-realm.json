@@ -1,0 +1,102 @@
+{
+  "realm": "comedor-uagrm",
+  "enabled": true,
+  "displayName": "Comedor UAGRM",
+  "accessTokenLifespan": 3600,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "roles": {
+    "realm": [
+      { "name": "administrador" },
+      { "name": "nutricionista" },
+      { "name": "cocina_almacen" },
+      { "name": "servicio_caja" },
+      { "name": "estudiante" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "backoffice-gestion",
+      "enabled": true,
+      "publicClient": true,
+      "redirectUris": ["http://32.187.224.152:3001/*", "http://localhost:3001/*"],
+      "webOrigins": ["http://32.187.224.152:3001", "http://localhost:3001", "+"],
+      "protocol": "openid-connect",
+      "directAccessGrantsEnabled": true
+    },
+    {
+      "clientId": "portal-estudiante",
+      "enabled": true,
+      "publicClient": true,
+      "redirectUris": ["http://32.187.224.152:3002/*", "http://localhost:3002/*"],
+      "webOrigins": ["http://32.187.224.152:3002", "http://localhost:3002", "+"],
+      "protocol": "openid-connect",
+      "directAccessGrantsEnabled": true
+    },
+    {
+      "clientId": "inteligencia-negocio",
+      "enabled": true,
+      "publicClient": true,
+      "redirectUris": ["http://32.187.224.152:3003/*", "http://localhost:3003/*"],
+      "webOrigins": ["http://32.187.224.152:3003", "http://localhost:3003", "+"],
+      "protocol": "openid-connect",
+      "directAccessGrantsEnabled": true
+    },
+    {
+      "clientId": "app-movil",
+      "enabled": true,
+      "publicClient": true,
+      "redirectUris": ["comedoruagrm://callback"],
+      "protocol": "openid-connect",
+      "directAccessGrantsEnabled": true
+    },
+    {
+      "clientId": "api-gateway",
+      "enabled": true,
+      "bearerOnly": true,
+      "protocol": "openid-connect"
+    }
+  ],
+  "users": [
+    {
+      "username": "admin.comedor",
+      "enabled": true,
+      "firstName": "Admin",
+      "lastName": "Comedor",
+      "email": "admin@comedor.uagrm.edu.bo",
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "admin123", "temporary": false }],
+      "realmRoles": ["administrador"]
+    },
+    {
+      "username": "nutricionista.demo",
+      "enabled": true,
+      "firstName": "Maria",
+      "lastName": "Nutri",
+      "email": "nutri@comedor.uagrm.edu.bo",
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "nutri123", "temporary": false }],
+      "realmRoles": ["nutricionista"]
+    },
+    {
+      "username": "caja.demo",
+      "enabled": true,
+      "firstName": "Jose",
+      "lastName": "Caja",
+      "email": "caja@comedor.uagrm.edu.bo",
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "caja123", "temporary": false }],
+      "realmRoles": ["servicio_caja"]
+    },
+    {
+      "username": "estudiante.demo",
+      "enabled": true,
+      "firstName": "Juan",
+      "lastName": "Demo",
+      "email": "estudiante@comedor.uagrm.edu.bo",
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "demo123", "temporary": false }],
+      "realmRoles": ["estudiante"]
+    }
+  ]
+}

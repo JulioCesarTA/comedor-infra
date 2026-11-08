@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: ia-ml-service, namespace: comedor, labels: { app: ia-ml-service } }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: ia-ml-service } }
+  template:
+    metadata: { labels: { app: ia-ml-service } }
+    spec:
+      serviceAccountName: ia-ml-sa
+      containers:
+        - name: app
+          image: ${ECR_REGISTRY}/ia-ml-service:${IMAGE_TAG}
+          ports: [{ containerPort: 8080 }]
+          envFrom:
+            - configMapRef: { name: ia-ml-config }
+            - secretRef: { name: ia-ml-secrets }
+          resources:
+            requests: { cpu: "500m", memory: "1Gi" }
+            limits:   { cpu: "2",    memory: "4Gi" }
+          readinessProbe: { httpGet: { path: /health, port: 8080 }, initialDelaySeconds: 15 }
+          livenessProbe:  { httpGet: { path: /health, port: 8080 }, initialDelaySeconds: 30 }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: ia-ml-service, namespace: comedor }
+spec:
+  selector: { app: ia-ml-service }
+  ports: [{ port: 80, targetPort: 8080 }]
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata: { name: ia-ml-hpa, namespace: comedor }
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: ia-ml-service }
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource: { name: cpu, target: { type: Utilization, averageUtilization: 70 } }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata: { name: ia-ml-config, namespace: comedor }
+data:
+  AWS_REGION: "us-east-1"
+  DYNAMODB_TABLE_IDEMPOTENCY: "idempotency_keys"
+  DYNAMODB_TABLE_SAGAS: "sagas"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ia-ml-sa
+  namespace: comedor
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::${AWS_ACCOUNT_ID}:role/ia-ml-irsa

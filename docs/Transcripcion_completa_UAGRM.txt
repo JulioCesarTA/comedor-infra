@@ -1,0 +1,676 @@
+ DEBE CUMPLIR TODO ESTO MENOS ICONIX NI KUBERNETES, PERO TODO LO DEMAS DEBE FUNCIONAR
+ AHURITA TODO ESTA EN AWS ESO ESTA BIEN
+ 
+        UNIVERSIDAD AUTÓNOMA GABRIEL RENÉ MORENO
+ FACULTAD DE INGENIERÍA EN CIENCIAS DE LA COMPUTACIÓN Y
+                 TELECOMUNICACIONES
+
+
+
+
+                   COMEDOR UNIVERSITARIO UAGRM
+
+                                       GRUPO #25
+
+Integrantes:
+
+      Cortez Siles Claudia Liseth​ ​     ​       ​   222008121
+
+      Mamani Meza Beimar​          ​     ​       ​   220001741
+
+      Torrico Avila Julio Cesar​   ​     ​       ​   223044539
+
+Materia: Ingeniería de Software 2 (INF-512) SB
+
+Docente: Ing. Rolando Antonio Martínez Canedo
+ÍNDICE
+Descripción del software............................................................................................................. 3
+Funcionalidades principales....................................................................................................... 3
+Microservicios.............................................................................................................................. 4
+Frontend: microfrontends y shell............................................................................................... 5
+GraphQL y REST.......................................................................................................................... 6
+Agentes inteligentes y protocolo MCP.......................................................................................6
+IA local, funcionamiento offline e idempotencia....................................................................... 7
+Transacciones transversales con patrón Saga......................................................................... 8
+Machine Learning y Deep Learning............................................................................................ 9
+Automatización con n8n............................................................................................................ 10
+Reportes generativos y protección contra inyección SQL.................................................... 11
+Bases de datos e inicio de sesión único................................................................................. 12
+Arquitectura................................................................................................................................ 12
+Metodología ICONIX................................................................................................................... 13
+Resumen: dónde se aplica cada requisito...............................................................................14
+Descripción del software
+Construiremos una plataforma para el Comedor Universitario de la UAGRM que digitaliza todo
+el ciclo de una ración: planificar el menú, comprar y controlar insumos, reservar y pagar la
+comida, servirla en la línea de atención y medir cuánto se consumió y cuánto se desperdició.
+También administra las becas comedor de los estudiantes becarios y el cobro de cada ración a
+los estudiantes regulares.
+
+Problema que resuelve: hoy el comedor trabaja con tickets en papel, listas impresas de
+becarios y planillas de inventario. Se forman filas largas, se cocina de más o de menos porque
+nadie sabe cuántos estudiantes vendrán, se vencen insumos en el almacén, hay becas que no
+se usan sin que nadie lo note y la dirección no tiene una vista clara del costo real por ración.
+
+Usuarios:
+
+   ●​ Administrador del comedor / Dirección de Bienestar Universitario: supervisa el
+      servicio, aprueba compras, pide reportes y delega misiones a los agentes de IA.
+   ●​ Nutricionista: arma el menú semanal, las recetas y las porciones.
+   ●​ Personal de cocina y almacén: registra insumos, producción del día y mermas.
+   ●​ Personal de servicio y caja: valida el QR del estudiante en la línea de atención, cobra
+      en efectivo las raciones de quienes reservan en la caja y registra las raciones
+      entregadas.
+   ●​ Estudiante (regular o becario): consulta el menú, reserva su ración, paga la ración con
+      QR bancario o en efectivo en la caja (los becarios no pagan) y muestra su QR.
+   ●​ Proveedor: recibe órdenes de compra y confirma entregas.
+
+Componentes de la plataforma:
+
+   1.​ Portal del estudiante: menú del día y de la semana, reservas, pago por QR bancario,
+       estado de la beca, historial y código QR.
+   2.​ Sistema de gestión empresarial del comedor (back-office): núcleo del negocio, operado
+       por agentes inteligentes.
+   3.​ Módulo de inteligencia de negocio: dashboards y predicciones generados con Machine
+       Learning.
+   4.​ App móvil: modo estudiante y modo punto de servicio, con IA local y funcionamiento
+       offline.
+   5.​ Servicios de IA y automatización: agentes, modelos de ML/DL, reportes generativos y
+       flujos de n8n.
+
+
+Funcionalidades principales
+
+      Módulo                                         Qué hace
+ Menú e Inventario   Recetas con ficha nutricional, menú semanal por turno (desayuno,
+                     almuerzo, cena), insumos por lote con fecha de vencimiento, stock,
+                     mermas, órdenes de compra a proveedores, cantidad a cocinar
+                     sugerida por IA
+
+
+
+ Comensales y        Registro de estudiantes vinculado al registro universitario, becas
+ Reservas            comedor (tipo, cupo, vigencia), reserva de ración por turno,
+                     cancelación, lista de espera, control de ingreso con QR
+
+
+
+ Pagos y Tickets     Cobro de cada ración por QR bancario o en efectivo en la caja,
+                     cobertura de beca (los becarios no pagan), facturación, devoluciones,
+                     pagos a proveedores
+
+
+
+ Inteligencia de     Dashboards de raciones servidas, asistencia, desperdicio y costo por
+ negocio             ración; predicción de demanda; segmentación de comensales y platos
+
+
+
+ Agentes de IA       Monitoreo del comedor, planificación de menú, control de inventario y
+                     compras, atención al estudiante, reportes generativos por texto o voz
+
+
+
+ App móvil           Estudiante: menú, reserva y QR. Punto de servicio: validar QR offline,
+                     registrar entregas, foto de bandeja analizada por IA local
+
+
+
+ Automatización      Reservas y consultas por WhatsApp, recordatorios de reserva, alertas
+                     de stock bajo, envío de órdenes de compra y facturas por email y todas
+                     las notificaciones push
+
+
+
+
+Microservicios
+El backend tiene cuatro microservicios: tres de negocio, cada uno en uno de los lenguajes
+obligatorios (Spring Boot, NestJS y PHP), y uno de soporte (IA/ML en Python). El envío de
+emails, mensajes de WhatsApp y notificaciones push no es un microservicio: lo hace n8n (ver
+Automatización con n8n). Cada microservicio es dueño de sus datos y solo se comunica con los
+demás por API o por eventos.
+  Microservicio        Lenguaje                           Responsabilidad
+
+
+
+ Menú e Inventario   Spring Boot       Recetas, platos, menú semanal, insumos, lotes, stock,
+                     (Java)            mermas y órdenes de compra
+
+
+
+ Comensales y        NestJS            Estudiantes, becas, turnos, reservas, lista de espera y
+ Reservas            (TypeScript)      control de ingreso
+
+
+
+ Pagos y Tickets     PHP (Laravel)     Cobro de cada ración (QR bancario o efectivo en caja),
+                                       cobertura de becas, facturas, devoluciones y pagos a
+                                       proveedores
+
+
+
+ IA / ML             Python            Modelos de ML y DL, agentes, servidor MCP, reportes
+                     (FastAPI)         generativos
+
+
+
+Además se usan:
+
+   ●​ API Gateway: punto de entrada único para los frontends.
+   ●​ Bus de eventos: comunicación asíncrona entre servicios, necesaria para la saga y para
+      alimentar los reportes. Se usa Amazon SQS/SNS, porque todo se despliega en AWS.
+   ●​ Keycloak: autenticación e inicio de sesión único.
+
+
+Frontend: microfrontends y shell
+La interfaz web se arma con microfrontends en Angular y React, integrados por un shell
+mediante Module Federation. Cada microfrontend se desarrolla y despliega por separado.
+
+
+
+         Pieza       Framework                            Qué contiene
+
+
+
+ Shell               React           Menú y navegación general, sesión única, carga de los
+                                     demás microfrontends
+ Back-office de       Angular        Menú e inventario, compras, comensales y becas,
+ gestión                             reservas, pagos, panel de agentes de IA
+
+
+
+ Portal del           React          Menú del día, reservas, pago por QR bancario, estado de
+ estudiante                          la beca, historial, código QR
+
+
+
+ Inteligencia de      React          Dashboards, predicciones y reportes generativos
+ negocio
+
+
+
+App móvil: desarrollada en React Native, con dos modos según el rol. El modo estudiante
+muestra el menú, permite reservar y guarda el QR. El modo punto de servicio lo usa el personal
+en una tablet en la línea de atención: valida QR, registra raciones entregadas y fotografía
+bandejas. Funciona sin conexión y ejecuta modelos de IA en el propio dispositivo (detalle en la
+sección de IA local).
+
+Los tres fronts son Angular (back-office), React (shell, portal e inteligencia de negocio) y React
+Native (app móvil).
+
+
+GraphQL y REST
+GraphQL se usa solo en el sistema de gestión empresarial del comedor (back-office Angular).
+Todo lo demás usa REST.
+
+   ●​ Dónde: un gateway GraphQL (Apollo Federation) une en un solo esquema los datos de
+      Menú e Inventario, Comensales y Reservas, y Pagos y Tickets.
+   ●​ Por qué ahí: es donde el personal trabaja todos los días, y cada pantalla junta datos de
+      los tres microservicios de negocio. Por ejemplo, la ficha de un estudiante becario
+      muestra sus datos y su beca (Comensales y Reservas), las raciones cubiertas por su
+      beca (Pagos y Tickets) y los platos que reservó (Menú e Inventario). Otro ejemplo es la
+      pantalla para armar el menú de mañana, que junta la receta y el stock de insumos
+      (Menú e Inventario) con la cantidad de reservas (Comensales y Reservas). Con REST
+      serían varias llamadas que devuelven campos que no se usan. Con GraphQL es una
+      sola consulta que trae exactamente lo necesario, algo importante con el internet
+      inestable del campus.
+   ●​ REST: portal del estudiante, app móvil, inteligencia de negocio (dashboards y reportes
+      generativos), comunicación entre microservicios e integraciones con n8n. Los reportes
+      no usan GraphQL: leen de la base de lectura por REST.
+Agentes inteligentes y protocolo MCP
+El sistema de gestión empresarial funciona con agentes: el usuario les da una misión y el
+agente decide qué consultar, qué reportar y qué acciones proponer usando sus skills.
+
+
+
+    Agente               Misión                            Skills principales
+
+
+
+ Monitor del      "Monitorea el           Detectar caídas de asistencia, platos con mucho
+ comedor          comedor y avísame       desperdicio, costo por ración fuera de presupuesto,
+                  lo importante"          reporte diario al administrador
+
+
+
+ Planificador de "Arma el menú de la      Proponer menú según recetas aceptadas, stock
+ menú            próxima semana"          disponible, insumos por vencer y requisitos
+                                          nutricionales; calcular cantidades con la predicción
+                                          de demanda
+
+
+
+ Inventario y     "Que nunca falte un     Detectar stock bajo y lotes por vencer, preparar
+ compras          insumo ni se venza      órdenes de compra, comparar precios de
+                  nada"                   proveedores, escalar al administrador
+
+
+
+ Atención al      "Que ningún             Responder consultas de menú, horarios, precios y
+ estudiante       estudiante quede sin    estado de la beca; gestionar reservas y
+                  respuesta"              cancelaciones; avisar a becarios que no usan su
+                                          beca
+
+
+
+Protocolo MCP (Model Context Protocol): cada microservicio expone sus operaciones como
+herramientas MCP, por ejemplo consultar el menú, ver el stock de un insumo o registrar una
+reserva. Los agentes solo pueden actuar a través de esas herramientas. Así el acceso queda
+estandarizado, limitado y auditado. Las acciones críticas, como emitir una orden de compra o
+suspender una beca, requieren confirmación de una persona.
+
+
+IA local, funcionamiento offline e idempotencia
+La app móvil y el back-office web siguen funcionando sin internet o con conexión inestable.
+Ambos ejecutan IA en el propio dispositivo.
+IA local en la app móvil:
+
+   ●​ Cuando el estudiante devuelve su bandeja, el personal le toma una foto y un modelo de
+      TensorFlow Lite estima en la tablet el porcentaje de comida sobrante por componente
+      (arroz, carne, ensalada). Así se mide el desperdicio sin internet.
+   ●​ Desde la tablet del punto de servicio, el personal registra mermas y producción del turno
+      con notas de voz, que se transcriben en el dispositivo y se convierten en el registro del
+      día.
+
+IA local en el navegador:
+
+   ●​ El back-office es una PWA. Usa un modelo ligero que corre en el navegador
+      (TensorFlow.js o Transformers.js) para búsqueda semántica de recetas ("plato con pollo,
+      bajo en grasa y sin lácteos") y resumen de fichas, sin depender del servidor.
+
+Funcionamiento offline:
+
+   ●​ El back-office (PWA) y la app móvil guardan datos localmente (IndexedDB en web,
+      SQLite en móvil).
+   ●​ El punto de servicio descarga al inicio de cada turno la lista de reservas y becarios. Los
+      QR se validan contra esa lista aunque se caiga el internet.
+   ●​ Toda operación hecha sin conexión entra en una cola de sincronización. Al volver la red,
+      se envía en orden y con reintentos automáticos.
+   ●​ Con conexión inestable, cada petición tiene un tiempo de espera corto: si no responde a
+      tiempo, la operación queda en la cola en vez de colgar la pantalla.
+   ●​ Los reintentos esperan cada vez más entre un intento y otro (1 s, 2 s, 4 s, 8 s), para no
+      saturar la red cuando vuelve.
+   ●​ Una operación sin respuesta nunca se da por perdida ni se crea de nuevo: se reintenta
+      con la misma clave de idempotencia, así el servidor sabe que es la misma.
+   ●​ La pantalla muestra el estado de cada operación (pendiente, sincronizada, con error)
+      para que el personal sepa qué ya llegó al servidor.
+   ●​ Las reservas y raciones se sincronizan primero en paquetes pequeños; las fotos de
+      bandejas se suben después, cuando la conexión lo permite.
+
+Idempotencia:
+
+   ●​ Cada operación lleva una clave única generada en el cliente, por ejemplo al registrar la
+      entrega de una ración o el cobro de una ración por QR bancario.
+   ●​ El servidor guarda esa clave en DynamoDB con escritura condicional. Si la misma
+      petición llega dos veces por un reintento, la segunda se reconoce y devuelve el
+      resultado original sin cobrar dos veces la misma ración ni entregar dos raciones al
+      mismo estudiante.
+
+
+Transacciones transversales con patrón Saga
+Cada microservicio tiene su propia base de datos, así que no existe un rollback común: si un
+servicio terminó su parte y otro falla, el primero no se deshace solo. Por eso las operaciones
+que cruzan tres microservicios se coordinan con una saga orquestada. Si un paso falla, se
+ejecutan acciones compensatorias que deshacen los pasos anteriores. El estado de cada saga
+se guarda en DynamoDB.
+
+Saga 1: Reservar y pagar una ración
+
+
+
+ Paso      Microservicio                     Acción                       Compensación si
+                                                                          algo falla después
+
+
+
+ 1        Comensales y       Validar al estudiante y crear la reserva   Cancelar la reserva
+          Reservas           en estado "pendiente" para el turno
+                             elegido
+
+
+
+ 2        Menú e             Apartar una porción del plato del turno    Devolver la porción al
+          Inventario         (descontar del cupo disponible)            cupo
+
+
+
+ 3        Pagos y Tickets    Si es becario, aplicar la beca; si no,     Devolver el pago o
+                             cobrar la ración (por QR bancario si       liberar la beca, y anular
+                             reserva desde el celular, o en efectivo    el ticket
+                             si reserva en la caja). Luego emitir el
+                             ticket
+
+
+
+ 4        Comensales y       Confirmar la reserva y generar el          Invalidar el QR
+          Reservas           código QR
+
+
+
+Saga 2: Cancelar una reserva (es el caso de una devolución): Pagos y Tickets devuelve el
+pago al estudiante (o libera la ración de su beca), Menú e Inventario libera la porción y
+Comensales y Reservas marca la reserva como cancelada y ofrece el cupo a la lista de espera.
+Si la devolución falla, la porción no se libera.
+
+
+Machine Learning y Deep Learning
+Los modelos viven en el microservicio de IA/ML (Python) y alimentan el módulo de inteligencia
+de negocio, los agentes y la app móvil.
+        Tipo                          Modelo                          Uso en la plataforma
+
+
+
+ Supervisado         Predicción de cuántas raciones se             Cantidad sugerida a
+ (regresión)         servirán por turno según día de la            cocinar; menos comida
+                     semana, plato, calendario académico           sobrante y menos
+                     (exámenes, feriados, vacaciones) y clima      estudiantes sin ración
+
+
+
+ Supervisado         Probabilidad de que un estudiante con         Sobrereserva controlada y
+ (clasificación)     reserva no se presente                        liberación anticipada de
+                                                                   cupos a la lista de espera
+
+
+
+ No supervisado      Segmentación de comensales por                Menús y campañas
+ (clustering)        frecuencia, horario, preferencias y tipo de   dirigidas, detección de
+                     beca                                          becarios que dejan de
+                                                                   asistir
+
+
+
+ No supervisado      Agrupamiento de platos por aceptación,        Mapa de platos en los
+ (clustering)        costo y desperdicio                           dashboards: cuáles
+                                                                   mantener, ajustar o retirar
+                                                                   del menú
+
+
+
+ Deep Learning,      Red convolucional que estima el               Medir el desperdicio por
+ TensorFlow          porcentaje de comida sobrante en la foto      plato y por turno
+ (imagen)            de la bandeja
+
+
+
+ Deep Learning,      Clasificación de calidad de insumos           Control de calidad al recibir
+ TensorFlow          (frutas, verduras y carnes en buen estado,    la entrega del proveedor
+ (imagen)            maduras o dañadas)
+
+
+
+Las versiones ligeras de los modelos de imagen se exportan a TensorFlow Lite y TensorFlow.js
+para correr en el móvil y en el navegador.
+
+
+Automatización con n8n
+n8n orquesta flujos 100% automáticos que conectan WhatsApp, los microservicios y el email. La
+conexión con WhatsApp se hace mediante Kapso, que recibe los mensajes de los estudiantes y
+los pasa a n8n, y envía las respuestas que genera n8n. n8n también se encarga de todas las
+notificaciones de la plataforma: emails, mensajes de WhatsApp (vía Kapso) y notificaciones
+push a la app móvil (vía Firebase Cloud Messaging).
+
+Flujo 1: Reserva por WhatsApp
+
+   1.​ Un estudiante escribe por WhatsApp "¿qué hay de almuerzo mañana?".
+   2.​ n8n consulta el menú en Menú e Inventario y responde con el plato y su precio.
+   3.​ Si el estudiante pide reservar, n8n lo identifica por su número registrado y lanza la saga
+       de reserva. Si no es becario, n8n le envía el QR bancario para pagar la ración.
+   4.​ n8n le envía por WhatsApp la confirmación con su código QR.
+
+Flujo 2: Reposición de insumos
+
+   1.​ Cada noche n8n consulta en Menú e Inventario los insumos bajo el stock mínimo y los
+       que necesita el menú de la semana siguiente.
+   2.​ Se genera un borrador de orden de compra y se envía al administrador para que la
+       apruebe.
+   3.​ Al aprobarse, Pagos y Tickets registra la obligación de pago al proveedor.
+   4.​ n8n envía la orden por email al proveedor y avisa al almacén la fecha de entrega.
+
+
+Reportes generativos y protección contra inyección SQL
+El administrador pide reportes en lenguaje natural, escribiendo o hablando, y la plataforma los
+genera al momento.
+
+Ejemplos de peticiones:
+
+   ●​ "¿Cuántas raciones se sirvieron ayer en cada turno y cuántas reservas no se
+      presentaron?"
+   ●​ "¿Qué platos tuvieron más desperdicio este mes?"
+   ●​ "¿Qué becarios no usaron su beca esta semana?"
+   ●​ "¿Cuál fue el costo promedio por ración en septiembre?"
+
+Cómo funciona: el audio se transcribe a texto, el modelo de lenguaje interpreta la intención y
+elige un reporte con sus parámetros. El resultado se muestra en pantalla como tabla o gráfico y
+se exporta a Excel o PDF.
+
+Protección contra inyección SQL:
+
+   ●​ El modelo de lenguaje nunca escribe SQL. Solo elige entre consultas predefinidas y
+      completa parámetros.
+   ●​ Los parámetros se validan por tipo y rango y se envían como consultas parametrizadas.
+   ●​ Los reportes leen de la base de lectura con un usuario de solo lectura.
+   ●​ Cada petición queda registrada, y el usuario solo ve datos que su rol permite.
+   ●​ Lo mismo aplica a los comandos de voz, a los mensajes de WhatsApp y a las
+      herramientas que usan los agentes.
+
+
+Bases de datos e inicio de sesión único
+
+   Base de            Dónde se usa                                  Por qué
+    datos
+
+
+
+ PostgreSQL     Comensales y Reservas;        Datos relacionales y movimientos de dinero
+                Pagos y Tickets; base de      (cobros, becas, facturas) que exigen consistencia
+                lectura para reportes
+
+
+
+ MongoDB        Menú e Inventario             Cada receta tiene ingredientes, pasos y ficha
+                                              nutricional distintos, y cada insumo tiene atributos
+                                              propios (lote, vencimiento, unidad); un documento
+                                              flexible evita tablas llenas de columnas vacías
+
+
+
+ DynamoDB       Claves de idempotencia,       Escrituras condicionales rápidas y nativo en AWS
+                estado de las sagas y
+                registro de las
+                operaciones que llegan
+                desde la cola offline
+
+
+
+Las fotos de los platos y de las bandejas se guardan en Amazon S3.
+
+Inicio de sesión único (SSO): Keycloak con OpenID Connect. El usuario se loguea una vez y
+entra al portal, al back-office, a los dashboards y a la app móvil sin volver a autenticarse. Los
+estudiantes ingresan con su registro universitario. Los roles (administrador, nutricionista, cocina,
+servicio y caja, estudiante) definen qué ve cada uno.
+
+
+Arquitectura
+Arquitecturas de código: los tres microservicios de negocio aplican DDD, Hexagonal y Clean,
+una arquitectura cada uno, y el microservicio de IA/ML usa una arquitectura en capas.
+  Microservicio       Arquitectura                       Cómo se refleja
+
+
+
+ Menú e               DDD            Agregado Menú con sus reglas (no se publica un menú
+ Inventario (Spring                  sin receta ni porciones; no se aparta una porción si no
+ Boot)                               hay stock), objetos de valor (Porción, Cantidad,
+                                     FechaVencimiento) y eventos de dominio (StockBajo,
+                                     LoteVencido)
+
+
+
+ Pagos y Tickets      Hexagonal      El núcleo de cobros, becas y facturación no depende de
+ (PHP)                               nada externo; la base de datos, el QR bancario y el email
+                                     se conectan por puertos y adaptadores
+
+
+
+ Comensales y         Clean          Capas de entidades, casos de uso (reservar ración,
+ Reservas                            cancelar reserva, validar ingreso), adaptadores de
+ (NestJS)                            interfaz e infraestructura, con dependencias apuntando
+                                     hacia adentro
+
+
+
+ IA / ML (Python)     En capas       Capa de API (FastAPI) que recibe los pedidos; capa de
+                                     servicios con la lógica de agentes, reportes y
+                                     predicciones; capa de modelos con los modelos de ML y
+                                     DL entrenados; y capa de acceso a datos. Cada capa
+                                     solo usa la que está debajo
+
+
+
+Los cuatro niveles de arquitectura:
+
+   1.​ Backend: microservicios independientes detrás de un API Gateway, comunicados por
+       REST y por eventos asíncronos.
+   2.​ Frontend: microfrontends Angular y React integrados por el shell con Module
+       Federation, más la app móvil en React Native.
+   3.​ Datos: cada servicio tiene su propia base, por lo que los reportes no pueden hacer
+       consultas entre servicios. Se aplica CQRS: los servicios publican eventos y una base de
+       lectura en PostgreSQL los consolida. Reportes, dashboards y agentes consultan ahí.
+   4.​ Despliegue: AWS, con cada servicio en un contenedor Docker sobre Amazon ECS,
+       fotos en S3, DynamoDB administrado y CI/CD con GitHub Actions.
+
+
+Metodología ICONIX
+El proyecto se documenta con ICONIX, que va de los requisitos al código en cuatro etapas y
+usa pocos diagramas UML, siempre conectados entre sí.
+
+Etapas:
+
+   1.​ Análisis de requisitos: modelo de dominio, prototipos de pantalla y casos de uso. En el
+       comedor, el modelo de dominio tiene las clases Estudiante, Beca, Reserva, Turno,
+       Menú, Plato, Receta, Insumo, Lote, Pago, Ticket, Proveedor y OrdenCompra.
+   2.​ Análisis y diseño preliminar: descripción de cada caso de uso y su diagrama de
+       robustez, revisados contra el modelo de dominio.
+   3.​ Diseño detallado: diagramas de secuencia y diagrama de clases final, por ejemplo la
+       secuencia de la saga de reserva entre los tres microservicios.
+   4.​ Implementación: código y pruebas por caso de uso, incluido el caso en que falla el
+       pago dentro de la saga.
+
+Casos de uso principales por actor:
+
+   ●​ Estudiante: consultar menú, reservar ración, cancelar reserva, pagar la ración por QR
+      bancario, mostrar QR, consultar por WhatsApp.
+   ●​ Personal de servicio y caja: validar QR, registrar ración entregada, fotografiar bandeja,
+      cobrar ración en efectivo.
+   ●​ Nutricionista: registrar receta, armar menú semanal, revisar aceptación de platos.
+   ●​ Personal de cocina y almacén: registrar ingreso de insumos, registrar producción,
+      registrar merma.
+   ●​ Administrador: aprobar orden de compra, gestionar becas, pedir reporte generativo,
+      dar misión a un agente.
+   ●​ Agentes de IA y n8n: alertar stock bajo, proponer menú, enviar recordatorios, generar
+      orden de compra.
+
+Ejemplo de robustez, caso "Reservar ración":
+
+   ●​ Interfaz: pantalla de reserva del portal o de la app; chat de WhatsApp.
+   ●​ Control: orquestador de la saga de reserva; validador de beca y de pago.
+   ●​ Entidades: Estudiante, Reserva, Porción del menú, Beca, Pago, Ticket.
+
+
+Resumen: dónde se aplica cada requisito
+
+           Requisito                                  Dónde se aplica
+
+
+
+ Microservicios (Spring Boot,     Menú e Inventario (Spring Boot), Comensales y Reservas
+ NestJS, PHP)                     (NestJS), Pagos y Tickets (PHP); además IA/ML (Python)
+Microfrontends + shell (Angular, Shell React; back-office Angular; portal del estudiante e
+React, React Native)             inteligencia de negocio en React; app móvil en React
+                                 Native
+
+
+
+GraphQL                           Solo en el sistema de gestión empresarial (back-office)
+
+
+
+API REST                          Portal, app móvil, comunicación entre servicios, n8n
+
+
+
+Agentes inteligentes              Monitor del comedor, planificador de menú, inventario y
+                                  compras, atención al estudiante
+
+
+
+Protocolo MCP                     Herramientas que los microservicios exponen a los
+                                  agentes
+
+
+
+IA local                          App móvil (foto de bandeja y voz) y navegador (búsqueda
+                                  de recetas y resumen)
+
+
+
+Offline + PWA                     Back-office PWA y app móvil con validación de QR sin
+                                  internet, cola de sincronización y manejo de conexión
+                                  inestable
+
+
+
+Idempotencia                      Claves únicas por operación registradas en DynamoDB
+
+
+
+Transacciones transversales +     Reservar y pagar ración; cancelar reserva
+Saga
+
+
+
+ML supervisado                    Predicción de demanda de raciones y de inasistencia
+ML no supervisado                Segmentación de comensales y de platos
+
+
+
+Deep Learning (TensorFlow,       Estimación de desperdicio en bandejas y calidad de
+imagen)                          insumos
+
+
+
+Automatización n8n               Reservas por WhatsApp (vía Kapso) y reposición de
+                                 insumos
+
+
+
+Reportes generativos (texto y    Reportes en pantalla, Excel y PDF
+voz)
+
+
+
+Protección contra inyección      Consultas predefinidas y parametrizadas, usuario de solo
+SQL                              lectura
+
+
+
+PostgreSQL, MongoDB,             Reservas y Pagos; Menú e Inventario; idempotencia y
+DynamoDB                         sagas
+
+
+
+Inicio de sesión único           Keycloak con OpenID Connect
+
+
+
+DDD, Hexagonal, Clean            Menú e Inventario, Pagos y Tickets, Comensales y
+                                 Reservas
+
+
+
+Cuatro niveles de arquitectura   Backend, frontend, datos (CQRS), despliegue en AWS
+
+
+
+Documentación                    Metodología ICONIX: modelo de dominio, casos de uso,
+                                 robustez y secuencia
+

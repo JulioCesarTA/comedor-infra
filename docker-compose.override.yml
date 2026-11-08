@@ -1,0 +1,17 @@
+# Override para desarrollo: puertos extra, logs verbose, mount de código opcional.
+# docker compose up ya lo lee automáticamente.
+services:
+  menu-inventario-service:
+    environment:
+      LOGGING_LEVEL_ROOT: INFO
+      LOGGING_LEVEL_COM_UAGRM: DEBUG
+  comensales-reservas-service:
+    environment:
+      LOG_LEVEL: debug
+  pagos-tickets-service:
+    environment:
+      LOG_LEVEL: debug
+      APP_DEBUG: "true"
+  ia-ml-service:
+    environment:
+      LOG_LEVEL: debug
