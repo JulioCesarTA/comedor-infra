@@ -356,6 +356,14 @@ spec:
           value: "test"
         - name: AWS_ENDPOINT_URL
           value: "http://localstack:4566"
+        - name: S3_BANDEJAS_BUCKET
+          value: "comedor-uagrm-bandejas-483549541027"
+        - name: S3_REGION
+          value: "us-west-2"
+        - name: S3_ACCESS_KEY_ID
+          valueFrom: { secretKeyRef: { name: comedor, key: s3-key } }
+        - name: S3_SECRET_ACCESS_KEY
+          valueFrom: { secretKeyRef: { name: comedor, key: s3-secret } }
         readinessProbe:
           httpGet: { path: /health, port: 8080 }
           initialDelaySeconds: 20
