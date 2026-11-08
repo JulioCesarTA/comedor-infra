@@ -41,7 +41,7 @@ services:
   dynamodb-local:
     ports: !reset []
   ia-ml-service:
-    image: ${ECR}/ia-ml-service:latest
+    image: ${ECR}/comedor-ia-ml:latest
     depends_on: !reset []
     ports: !reset []
     environment:
