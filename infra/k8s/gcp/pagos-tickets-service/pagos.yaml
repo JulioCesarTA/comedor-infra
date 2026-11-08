@@ -89,6 +89,7 @@ spec:
         - { name: DB_USERNAME, valueFrom: { secretKeyRef: { name: pagos-secretos, key: db-user } } }
         - { name: DB_PASSWORD, valueFrom: { secretKeyRef: { name: pagos-secretos, key: db-pass } } }
         - { name: STRIPE_SECRET_KEY, valueFrom: { secretKeyRef: { name: pagos-secretos, key: stripe } } }
+        - { name: PORTAL_URL, value: "https://__EKS_EDGE_IP__/portal" }  # a dónde vuelve Stripe tras pagar
         - { name: AWS_REGION, value: us-east-1 }
         - { name: AWS_ACCESS_KEY_ID, value: test }
         - { name: AWS_SECRET_ACCESS_KEY, value: test }
