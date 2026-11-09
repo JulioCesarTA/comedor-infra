@@ -7,24 +7,139 @@
       "name": "POST /webhook/notificar",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [240, 300],
+      "position": [
+        240,
+        300
+      ],
       "webhookId": "notificar-comedor",
-      "parameters": { "httpMethod": "POST", "path": "notificar", "responseMode": "lastNode", "options": {} }
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "notificar",
+        "responseMode": "lastNode",
+        "options": {}
+      }
     },
     {
       "id": "enviar",
       "name": "Enviar por el canal pedido",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [480, 300],
+      "position": [
+        480,
+        300
+      ],
       "parameters": {
-        "jsCode": "// ia-ml pide: telegram | telegram-foto | push. La respuesta lleva { ok, ... } para que ia-ml decida si reintenta.\nconst crypto = require('crypto');\nconst { headers, body: b } = $input.first().json;\nif (!$env.N8N_CLAVE || headers['x-clave-comedor'] !== $env.N8N_CLAVE) return [{ json: { ok: false, description: 'Clave incorrecta' } }];\n\nconst http = this.helpers.httpRequest;\nconst telegram = (metodo) => `https://api.telegram.org/bot${$env.TELEGRAM_BOT_TOKEN}/${metodo}`;\n\nif (b.canal === 'telegram') {\n  const r = await http({ method: 'POST', url: telegram(b.metodo), body: b.datos, json: true, ignoreHttpStatusErrors: true });\n  return [{ json: r }];\n}\n\nif (b.canal === 'telegram-foto') {\n  const limite = 'comedor' + Date.now();\n  const campo = (n, v) => `--${limite}\\r\\nContent-Disposition: form-data; name=\"${n}\"\\r\\n\\r\\n${v}\\r\\n`;\n  const cuerpo = Buffer.concat([\n    Buffer.from(campo('chat_id', b.chat_id) + campo('caption', b.caption || '') +\n      `--${limite}\\r\\nContent-Disposition: form-data; name=\"photo\"; filename=\"qr.png\"\\r\\nContent-Type: image/png\\r\\n\\r\\n`),\n    Buffer.from(b.png, 'base64'),\n    Buffer.from(`\\r\\n--${limite}--\\r\\n`),\n  ]);\n  const r = await http({ method: 'POST', url: telegram('sendPhoto'), body: cuerpo,\n    headers: { 'content-type': `multipart/form-data; boundary=${limite}` }, json: true, ignoreHttpStatusErrors: true });\n  return [{ json: typeof r === 'string' ? JSON.parse(r) : r }];\n}\n\nif (b.canal === 'push') {\n  if (!$env.FIREBASE_CREDENCIALES) return [{ json: { ok: false, description: 'Falta FIREBASE_CREDENCIALES en n8n' } }];\n  const cred = JSON.parse($env.FIREBASE_CREDENCIALES);\n  const memoria = $getWorkflowStaticData('global');\n  if (!memoria.fcmToken || Date.now() > memoria.fcmVence) {\n    const ahora = Math.floor(Date.now() / 1000);\n    const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');\n    const sinFirma = b64({ alg: 'RS256', typ: 'JWT' }) + '.' + b64({\n      iss: cred.client_email, scope: 'https://www.googleapis.com/auth/firebase.messaging',\n      aud: 'https://oauth2.googleapis.com/token', iat: ahora, exp: ahora + 3600 });\n    const firma = crypto.createSign('RSA-SHA256').update(sinFirma).sign(cred.private_key, 'base64url');\n    const t = await http({ method: 'POST', url: 'https://oauth2.googleapis.com/token', json: true,\n      headers: { 'content-type': 'application/x-www-form-urlencoded' },\n      body: `grant_type=${encodeURIComponent('urn:ietf:params:oauth:grant-type:jwt-bearer')}&assertion=${sinFirma}.${firma}` });\n    memoria.fcmToken = t.access_token;\n    memoria.fcmVence = Date.now() + 50 * 60 * 1000;\n  }\n  const r = await http({ method: 'POST', url: `https://fcm.googleapis.com/v1/projects/${cred.project_id}/messages:send`,\n    headers: { Authorization: `Bearer ${memoria.fcmToken}` }, json: true, returnFullResponse: true, ignoreHttpStatusErrors: true,\n    body: { message: { token: b.token, notification: { title: b.titulo, body: b.cuerpo }, data: b.datos || {},\n      android: { priority: 'HIGH', ttl: b.vigencia, collapse_key: (b.datos || {}).tipo || 'aviso', notification: { channel_id: b.canalAndroid } } } } });\n  if (r.statusCode === 200) return [{ json: { ok: true } }];\n  if (r.statusCode === 401) delete memoria.fcmToken;\n  const texto = JSON.stringify(r.body);\n  const tokenInvalido = [404, 410].includes(r.statusCode) || texto.includes('UNREGISTERED') || texto.includes('INVALID_ARGUMENT');\n  return [{ json: { ok: false, tokenInvalido, description: `FCM ${r.statusCode}: ${texto.slice(0, 160)}` } }];\n}\n\nreturn [{ json: { ok: false, description: `Canal desconocido: ${b.canal}` } }];"
+        "jsCode": "// ia-ml pide: telegram | push. La respuesta lleva { ok, ... } para que ia-ml decida si reintenta.\nconst crypto = require('crypto');\nconst { headers, body: b } = $input.first().json;\nif (!$env.N8N_CLAVE || headers['x-clave-comedor'] !== $env.N8N_CLAVE) return [{ json: { ok: false, description: 'Clave incorrecta' } }];\n\nconst http = this.helpers.httpRequest;\nconst telegram = (metodo) => `https://api.telegram.org/bot${$env.TELEGRAM_BOT_TOKEN}/${metodo}`;\n\nif (b.canal === 'telegram') {\n  const r = await http({ method: 'POST', url: telegram(b.metodo), body: b.datos, json: true, ignoreHttpStatusErrors: true });\n  return [{ json: r }];\n}\n\nif (b.canal === 'push') {\n  if (!$env.FIREBASE_CREDENCIALES) return [{ json: { ok: false, description: 'Falta FIREBASE_CREDENCIALES en n8n' } }];\n  const cred = JSON.parse($env.FIREBASE_CREDENCIALES);\n  const memoria = $getWorkflowStaticData('global');\n  if (!memoria.fcmToken || Date.now() > memoria.fcmVence) {\n    const ahora = Math.floor(Date.now() / 1000);\n    const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');\n    const sinFirma = b64({ alg: 'RS256', typ: 'JWT' }) + '.' + b64({\n      iss: cred.client_email, scope: 'https://www.googleapis.com/auth/firebase.messaging',\n      aud: 'https://oauth2.googleapis.com/token', iat: ahora, exp: ahora + 3600 });\n    const firma = crypto.createSign('RSA-SHA256').update(sinFirma).sign(cred.private_key, 'base64url');\n    const t = await http({ method: 'POST', url: 'https://oauth2.googleapis.com/token', json: true,\n      headers: { 'content-type': 'application/x-www-form-urlencoded' },\n      body: `grant_type=${encodeURIComponent('urn:ietf:params:oauth:grant-type:jwt-bearer')}&assertion=${sinFirma}.${firma}` });\n    memoria.fcmToken = t.access_token;\n    memoria.fcmVence = Date.now() + 50 * 60 * 1000;\n  }\n  const r = await http({ method: 'POST', url: `https://fcm.googleapis.com/v1/projects/${cred.project_id}/messages:send`,\n    headers: { Authorization: `Bearer ${memoria.fcmToken}` }, json: true, returnFullResponse: true, ignoreHttpStatusErrors: true,\n    body: { message: { token: b.token, notification: { title: b.titulo, body: b.cuerpo }, data: b.datos || {},\n      android: { priority: 'HIGH', ttl: b.vigencia, collapse_key: (b.datos || {}).tipo || 'aviso', notification: { channel_id: b.canalAndroid } } } } });\n  if (r.statusCode === 200) return [{ json: { ok: true } }];\n  if (r.statusCode === 401) delete memoria.fcmToken;\n  const texto = JSON.stringify(r.body);\n  const tokenInvalido = [404, 410].includes(r.statusCode) || texto.includes('UNREGISTERED') || texto.includes('INVALID_ARGUMENT');\n  return [{ json: { ok: false, tokenInvalido, description: `FCM ${r.statusCode}: ${texto.slice(0, 160)}` } }];\n}\n\nreturn [{ json: { ok: false, description: `Canal desconocido: ${b.canal}` } }];"
+      }
+    },
+    {
+      "id": "recibir-foto",
+      "name": "POST /webhook/notificar-foto",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        520
+      ],
+      "webhookId": "notificar-foto-comedor",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "notificar-foto",
+        "responseMode": "lastNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "preparar-foto",
+      "name": "Preparar el archivo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        520
+      ],
+      "parameters": {
+        "jsCode": "// El QR llega en base64: el siguiente nodo lo sube a Telegram como archivo.\nconst { headers, body: b } = $input.first().json;\nif (!$env.N8N_CLAVE || headers['x-clave-comedor'] !== $env.N8N_CLAVE) throw new Error('Clave incorrecta');\nreturn [{ json: { chat_id: b.chat_id, caption: b.caption || '' },\n  binary: { foto: { data: b.png, mimeType: 'image/png', fileName: 'qr.png' } } }];"
+      }
+    },
+    {
+      "id": "enviar-foto",
+      "name": "Enviar foto por Telegram",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        520
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendPhoto",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "={{ $json.chat_id }}"
+            },
+            {
+              "name": "caption",
+              "value": "={{ $json.caption }}"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "photo",
+              "inputDataFieldName": "foto"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
       }
     }
   ],
   "connections": {
-    "POST /webhook/notificar": { "main": [[{ "node": "Enviar por el canal pedido", "type": "main", "index": 0 }]] }
+    "POST /webhook/notificar": {
+      "main": [
+        [
+          {
+            "node": "Enviar por el canal pedido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST /webhook/notificar-foto": {
+      "main": [
+        [
+          {
+            "node": "Preparar el archivo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar el archivo": {
+      "main": [
+        [
+          {
+            "node": "Enviar foto por Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
   "active": false,
-  "settings": { "executionOrder": "v1" }
+  "settings": {
+    "executionOrder": "v1"
+  }
 }
