@@ -82,6 +82,11 @@ spec:
         - { name: DB_USER, valueFrom: { secretKeyRef: { name: comensales-secretos, key: db-user } } }
         - { name: DB_PASS, valueFrom: { secretKeyRef: { name: comensales-secretos, key: db-pass } } }
         - { name: DATABASE_URL, value: "postgres://$(DB_USER):$(DB_PASS)@postgres-comensales:5432/comensales_reservas" }
+        # Dónde está el comedor para la asistencia del personal. El radio es amplio a propósito:
+        # dentro de un edificio el GPS se equivoca por decenas de metros.
+        - { name: COMEDOR_LAT, value: "-17.80497" }
+        - { name: COMEDOR_LON, value: "-63.15052" }
+        - { name: COMEDOR_RADIO_M, value: "1000" }
         - { name: AWS_REGION, value: us-east-1 }
         - { name: AWS_ACCESS_KEY_ID, value: test }
         - { name: AWS_SECRET_ACCESS_KEY, value: test }
