@@ -17,7 +17,7 @@
       "typeVersion": 2,
       "position": [480, 300],
       "parameters": {
-        "jsCode": "// El borrador lo calcula menu-inventario-service. Sin stock bajo el flujo termina aquí.\nconst lineas = await this.helpers.httpRequest({ url: `${$env.MENU_URL}/insumos/orden-compra-borrador`, json: true });\nreturn lineas.length ? [{ json: { objetivo: 'Reposición nocturna de insumos', contexto: {} } }] : [];"
+        "jsCode": "// El borrador lo calcula menu-inventario-service. Sin stock bajo el flujo termina aquí.\nconst lineas = await this.helpers.httpRequest({ url: `${$env.MENU_URL}/insumos/orden-compra-borrador`, json: true });\nreturn lineas.length ? [{ json: { objetivo: 'Reposición nocturna de insumos', contexto: { automatico: true } } }] : [];"
       }
     },
     {
