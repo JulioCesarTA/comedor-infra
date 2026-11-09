@@ -190,7 +190,7 @@ salida.append(despliegue("n8n", "n8nio/n8n:latest", 5678, {
     "FIREBASE_CREDENCIALES": S("firebase"),
     "IA_URL": "http://ia-ml-service:8080", "MENU_URL": "http://menu-inventario-service:8080", "PAGOS_URL": PAGOS_URL},
     mem="400Mi", limite="1Gi", pull=False,
-    comando='["sh", "-c", "for f in /flows/*.json; do n8n import:workflow --input=$f; done; for w in telegramComedor01 notificarComedor01 ordenAprobada01 reposicionInsumos01; do n8n update:workflow --id=$w --active=true; done; exec n8n start"]',
+    comando='["sh", "-c", "for f in /flows/*.json; do n8n import:workflow --input=$f; done; for w in telegramComedor01 notificarComedor01 ordenAprobada01 reposicionInsumos01; do n8n publish:workflow --id=$w; done; exec n8n start"]',
     volmounts=mounts(montaje("flujos", "/flows")), volumes=volumes(vol_cm("flujos", "flujos-n8n"))))
 for nombre, img, puerto in [("shell", "shell", 80), ("backoffice-gestion", "backoffice-gestion", 80),
                             ("portal-estudiante", "portal-estudiante", 80), ("inteligencia-negocio", "inteligencia-negocio", 3003)]:

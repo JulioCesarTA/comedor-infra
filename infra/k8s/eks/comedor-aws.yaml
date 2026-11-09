@@ -520,7 +520,7 @@ spec:
       - name: n8n
         image: n8nio/n8n:latest
         imagePullPolicy: Always
-        command: ["sh", "-c", "for f in /flows/*.json; do n8n import:workflow --input=$f; done; for w in telegramComedor01 notificarComedor01 ordenAprobada01 reposicionInsumos01; do n8n update:workflow --id=$w --active=true; done; exec n8n start"]
+        command: ["sh", "-c", "for f in /flows/*.json; do n8n import:workflow --input=$f; done; for w in telegramComedor01 notificarComedor01 ordenAprobada01 reposicionInsumos01; do n8n publish:workflow --id=$w; done; exec n8n start"]
         ports:
         - containerPort: 5678
         env:
