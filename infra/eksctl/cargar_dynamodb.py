@@ -1,4 +1,4 @@
-"""Carga las sagas y claves de idempotencia respaldadas en el DynamoDB local. Se ejecuta dentro del contenedor ia-ml."""
+"""Carga las sagas y claves de idempotencia respaldadas en DynamoDB real de AWS. Se ejecuta dentro del contenedor ia-ml."""
 import json
 import os
 
@@ -6,10 +6,10 @@ import boto3
 
 ddb = boto3.client(
     "dynamodb",
-    endpoint_url=os.environ["DYNAMODB_ENDPOINT"],
-    region_name=os.environ.get("AWS_REGION", "us-east-1"),
-    aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID", "test"),
-    aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY", "test"),
+    endpoint_url=os.environ.get("DYNAMODB_ENDPOINT") or None,
+    region_name=os.environ.get("DYNAMODB_REGION", "us-west-2"),
+    aws_access_key_id=os.environ["DYNAMODB_ACCESS_KEY_ID"],
+    aws_secret_access_key=os.environ["DYNAMODB_SECRET_ACCESS_KEY"],
 )
 for tabla, clave in (("sagas", "sagaId"), ("idempotency_keys", "idempotencyKey")):
     try:

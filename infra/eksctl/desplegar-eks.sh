@@ -24,6 +24,7 @@ kubectl apply -f infra/k8s/eks/storageclass.yaml
 kubectl create namespace comedor --dry-run=client -o yaml | kubectl apply -f -
 kubectl -n comedor create secret generic comedor \
   --from-literal=mongo-user="$(leer .env MONGO_INITDB_ROOT_USERNAME)" --from-literal=mongo-pass="$(leer .env MONGO_INITDB_ROOT_PASSWORD)" \
+  --from-literal=dynamo-key="$(leer .env.cloud.nuevo DYNAMODB_ACCESS_KEY_ID)" --from-literal=dynamo-secret="$(leer .env.cloud.nuevo DYNAMODB_SECRET_ACCESS_KEY)" \
   --from-literal=cqrs-user="$(leer .env POSTGRES_CQRS_USER)" --from-literal=cqrs-pass="$(leer .env POSTGRES_CQRS_PASSWORD)" \
   --from-literal=kc-admin="$(leer .env KEYCLOAK_ADMIN)" --from-literal=kc-admin-pass="$(leer respaldo/env.ec2 KEYCLOAK_ADMIN_PASSWORD)" \
   --from-literal=n8n-user="$(leer .env N8N_BASIC_AUTH_USER)" --from-literal=n8n-pass="$(leer respaldo/env.ec2 N8N_BASIC_AUTH_PASSWORD)" \

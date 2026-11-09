@@ -130,17 +130,13 @@ AWS_PRUEBA = {"AWS_REGION": "us-east-1", "AWS_ACCESS_KEY_ID": "test", "AWS_SECRE
 salida = [f"apiVersion: v1\nkind: Namespace\nmetadata:\n  name: {NS}\n"]
 
 # ------------------------------------------------------------------ datos (en el clúster, con disco persistente)
-salida.append(pvc("mongo-datos", 5) + pvc("cqrs-datos", 5) + pvc("dynamodb-datos", 2) + pvc("ia-datos", 2))
+salida.append(pvc("mongo-datos", 5) + pvc("cqrs-datos", 5) + pvc("ia-datos", 2))
 salida.append(despliegue("mongo", "mongo:7", 27017, {"MONGO_INITDB_ROOT_USERNAME": S("mongo-user"), "MONGO_INITDB_ROOT_PASSWORD": S("mongo-pass")},
                          mem="256Mi", limite="768Mi", pull=False, strategy_recreate=True,
                          volmounts=mounts(montaje("datos", "/data/db")), volumes=volumes(vol_pvc("datos", "mongo-datos"))))
 salida.append(despliegue("postgres-cqrs", "postgres:16-alpine", 5432, {"POSTGRES_USER": S("cqrs-user"), "POSTGRES_PASSWORD": S("cqrs-pass"), "POSTGRES_DB": "cqrs_read"},
                          mem="128Mi", limite="512Mi", pull=False, strategy_recreate=True,
                          volmounts=mounts(montaje("datos", "/var/lib/postgresql/data", "pgdata")), volumes=volumes(vol_pvc("datos", "cqrs-datos"))))
-salida.append(despliegue("dynamodb-local", "amazon/dynamodb-local:latest", 8000, mem="256Mi", limite="768Mi", pull=False, strategy_recreate=True,
-                         comando='["java", "-jar", "DynamoDBLocal.jar", "-sharedDb", "-dbPath", "/data"]',
-                         extra_pod="      securityContext: { runAsUser: 0 }\n",
-                         volmounts=mounts(montaje("datos", "/data")), volumes=volumes(vol_pvc("datos", "dynamodb-datos"))))
 salida.append(despliegue("localstack", "localstack/localstack:3", 4566, {"SERVICES": "sns,sqs,s3", "DEBUG": "0", "AWS_DEFAULT_REGION": "us-east-1"},
                          mem="400Mi", limite="1Gi", pull=False,
                          volmounts=mounts(montaje("init", "/etc/localstack/init/ready.d/init.sh", "init-localstack.sh")),
@@ -157,7 +153,8 @@ salida.append(despliegue("ia-ml-service", f"{GHCR}/ia-ml-service:latest", 8080, 
     "TELEGRAM_BOT_TOKEN": S("telegram"), "TELEGRAM_API_URL": "https://api.telegram.org", "TELEGRAM_RECEPCION": "n8n", "TZ": "America/La_Paz",
     "KEYCLOAK_URL": "http://keycloak:8080", "KEYCLOAK_REALM": "comedor-uagrm", "KEYCLOAK_ADMIN": S("kc-admin"),
     "KEYCLOAK_ADMIN_PASSWORD": S("kc-admin-pass"), "STRIPE_SECRET_KEY": S("stripe"),
-    "DYNAMODB_ENDPOINT": "http://dynamodb-local:8000", "COMENSALES_URL": COMENSALES_URL, "PAGOS_URL": PAGOS_URL, **AWS_PRUEBA,
+    "DYNAMODB_ENDPOINT": "https://dynamodb.us-west-2.amazonaws.com", "DYNAMODB_REGION": "us-west-2", "DYNAMODB_ACCESS_KEY_ID": S("dynamo-key"),
+    "DYNAMODB_SECRET_ACCESS_KEY": S("dynamo-secret"), "COMENSALES_URL": COMENSALES_URL, "PAGOS_URL": PAGOS_URL, **AWS_PRUEBA,
     # S3 real (fotos de bandejas): credenciales propias de solo lectura/escritura sobre ese bucket
     "S3_BANDEJAS_BUCKET": "comedor-uagrm-bandejas-483549541027", "S3_REGION": "us-west-2",
     "S3_ACCESS_KEY_ID": S("s3-key"), "S3_SECRET_ACCESS_KEY": S("s3-secret"),

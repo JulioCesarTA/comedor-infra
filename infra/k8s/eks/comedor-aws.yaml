@@ -29,17 +29,6 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: dynamodb-datos
-  namespace: comedor
-spec:
-  accessModes: [ReadWriteOnce]
-  resources:
-    requests:
-      storage: 2Gi
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
   name: ia-datos
   namespace: comedor
 spec:
@@ -143,50 +132,6 @@ spec:
   selector: { app: postgres-cqrs }
   ports:
   - { name: p5432, port: 5432, targetPort: 5432 }
-
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: dynamodb-local
-  namespace: comedor
-spec:
-  replicas: 1
-  strategy:
-    type: Recreate
-  selector:
-    matchLabels: { app: dynamodb-local }
-  template:
-    metadata:
-      labels: { app: dynamodb-local }
-    spec:
-      enableServiceLinks: false   # evita que Kubernetes inyecte variables tipo DYNAMODB_LOCAL_PORT que rompen a localstack
-      securityContext: { runAsUser: 0 }
-      containers:
-      - name: dynamodb-local
-        image: amazon/dynamodb-local:latest
-        imagePullPolicy: Always
-        command: ["java", "-jar", "DynamoDBLocal.jar", "-sharedDb", "-dbPath", "/data"]
-        ports:
-        - containerPort: 8000
-        volumeMounts:
-        - { name: datos, mountPath: /data }
-        resources:
-          requests: { memory: 256Mi, cpu: 20m }
-          limits: { memory: 768Mi }
-      volumes:
-      - name: datos
-        persistentVolumeClaim: { claimName: dynamodb-datos }
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: dynamodb-local
-  namespace: comedor
-spec:
-  selector: { app: dynamodb-local }
-  ports:
-  - { name: p8000, port: 8000, targetPort: 8000 }
 
 ---
 apiVersion: apps/v1
@@ -343,7 +288,13 @@ spec:
         - name: STRIPE_SECRET_KEY
           valueFrom: { secretKeyRef: { name: comedor, key: stripe } }
         - name: DYNAMODB_ENDPOINT
-          value: "http://dynamodb-local:8000"
+          value: "https://dynamodb.us-west-2.amazonaws.com"
+        - name: DYNAMODB_REGION
+          value: "us-west-2"
+        - name: DYNAMODB_ACCESS_KEY_ID
+          valueFrom: { secretKeyRef: { name: comedor, key: dynamo-key } }
+        - name: DYNAMODB_SECRET_ACCESS_KEY
+          valueFrom: { secretKeyRef: { name: comedor, key: dynamo-secret } }
         - name: COMENSALES_URL
           value: "http://64.236.51.69:8082"
         - name: PAGOS_URL

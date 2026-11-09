@@ -37,6 +37,8 @@ for r in menu-inventario comensales-reservas pagos-tickets ia-ml api-gateway gra
   aws ecr create-repository --region $R --repository-name comedor/$r >/dev/null 2>&1 || echo "ecr $r ya existe"
 done
 
+# ---- DynamoDB real: usuario comedor-dynamo solo con acceso a las tablas sagas e idempotency_keys.
+#      Su llave va en .env.cloud.nuevo (DYNAMODB_ACCESS_KEY_ID, DYNAMODB_SECRET_ACCESS_KEY) y en el secreto «comedor». ----
 # ---- Usuario IAM solo para las aplicaciones (permisos mínimos) ----
 aws iam create-user --user-name comedor-app >/dev/null 2>&1 || echo "usuario comedor-app ya existe"
 cat > .politica-app.tmp.json <<POL
