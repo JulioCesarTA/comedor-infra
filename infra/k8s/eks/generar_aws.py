@@ -160,7 +160,9 @@ salida.append(despliegue("ia-ml-service", f"{GHCR}/ia-ml-service:latest", 8080, 
     "DYNAMODB_ENDPOINT": "http://dynamodb-local:8000", "COMENSALES_URL": COMENSALES_URL, "PAGOS_URL": PAGOS_URL, **AWS_PRUEBA,
     # S3 real (fotos de bandejas): credenciales propias de solo lectura/escritura sobre ese bucket
     "S3_BANDEJAS_BUCKET": "comedor-uagrm-bandejas-483549541027", "S3_REGION": "us-west-2",
-    "S3_ACCESS_KEY_ID": S("s3-key"), "S3_SECRET_ACCESS_KEY": S("s3-secret")},
+    "S3_ACCESS_KEY_ID": S("s3-key"), "S3_SECRET_ACCESS_KEY": S("s3-secret"),
+    # Firebase Cloud Messaging (push): JSON de la cuenta de servicio, desde respaldo/firebase-admin.json
+    "FIREBASE_CREDENCIALES": S("firebase")},
     mem="1Gi", limite="3Gi", sonda="/health", strategy_recreate=True,
     volmounts=mounts(montaje("datos", "/data")), volumes=volumes(vol_pvc("datos", "ia-datos"))))
 

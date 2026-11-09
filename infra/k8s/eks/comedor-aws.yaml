@@ -364,6 +364,8 @@ spec:
           valueFrom: { secretKeyRef: { name: comedor, key: s3-key } }
         - name: S3_SECRET_ACCESS_KEY
           valueFrom: { secretKeyRef: { name: comedor, key: s3-secret } }
+        - name: FIREBASE_CREDENCIALES
+          valueFrom: { secretKeyRef: { name: comedor, key: firebase } }
         readinessProbe:
           httpGet: { path: /health, port: 8080 }
           initialDelaySeconds: 20

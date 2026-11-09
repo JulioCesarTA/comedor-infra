@@ -29,6 +29,7 @@ kubectl -n comedor create secret generic comedor \
   --from-literal=n8n-user="$(leer .env N8N_BASIC_AUTH_USER)" --from-literal=n8n-pass="$(leer respaldo/env.ec2 N8N_BASIC_AUTH_PASSWORD)" \
   --from-literal=stripe="$(leer .env.secrets STRIPE_SECRET_KEY)" --from-literal=telegram="$(leer .env.secrets TELEGRAM_BOT_TOKEN)" \
   --from-literal=s3-key="$(leer respaldo/s3-bandejas.env S3_ACCESS_KEY_ID)" --from-literal=s3-secret="$(leer respaldo/s3-bandejas.env S3_SECRET_ACCESS_KEY)" \
+  --from-literal=firebase="$(cat respaldo/firebase-admin.json)" \
   --dry-run=client -o yaml | kubectl apply -f -
 python infra/ec2/realm.py "$EKS_EDGE_IP" deploy/ec2/realm/comedor-realm.json
 kubectl -n comedor create configmap realm --from-file=comedor-realm.json=deploy/ec2/realm/comedor-realm.json --dry-run=client -o yaml | kubectl apply -f -
