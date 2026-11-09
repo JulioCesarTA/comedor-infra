@@ -48,7 +48,7 @@ spec:
 
 
 def despliegue(nombre, imagen, puerto, env=None, mem="128Mi", limite="512Mi", sonda=None, pull=False, comando=None,
-               volmounts="", volumes="", extra_pod="", puertos_extra=(), strategy_recreate=False):
+               volmounts="", volumes="", extra_pod="", puertos_extra=(), strategy_recreate=False, sonda_tcp=False):
     """Deployment + Service (ClusterIP) para un componente."""
     sonda_txt = ""
     if sonda:
@@ -57,6 +57,12 @@ def despliegue(nombre, imagen, puerto, env=None, mem="128Mi", limite="512Mi", so
           initialDelaySeconds: 20
           periodSeconds: 10
           failureThreshold: 18
+"""
+    if sonda_tcp:   # el puerto abre solo cuando el proceso ya arrancó del todo
+        sonda_txt = f"""        readinessProbe:
+          tcpSocket: {{ port: {puerto} }}
+          initialDelaySeconds: 5
+          periodSeconds: 5
 """
     pull_txt = "      imagePullSecrets:\n      - name: ghcr\n" if pull else ""
     cmd = f"        command: {comando}\n" if comando else ""
@@ -158,9 +164,11 @@ salida.append(despliegue("ia-ml-service", f"{GHCR}/ia-ml-service:latest", 8080, 
     # S3 real (fotos de bandejas): credenciales propias de solo lectura/escritura sobre ese bucket
     "S3_BANDEJAS_BUCKET": "comedor-uagrm-bandejas-483549541027", "S3_REGION": "us-west-2",
     "S3_ACCESS_KEY_ID": S("s3-key"), "S3_SECRET_ACCESS_KEY": S("s3-secret"),
-    # Firebase Cloud Messaging (push): JSON de la cuenta de servicio, desde respaldo/firebase-admin.json
-    "FIREBASE_CREDENCIALES": S("firebase")},
+    # Todas las notificaciones (Telegram y push) las envía n8n
+    "N8N_URL": "http://n8n:5678", "N8N_CLAVE": S("n8n-clave")},
     mem="1Gi", limite="3Gi", sonda="/health", strategy_recreate=True,
+    # La app corre con el grupo 101: sin esto no puede escribir en el volumen y sus datos se pierden en cada reinicio
+    extra_pod="      securityContext:\n        fsGroup: 101\n",
     volmounts=mounts(montaje("datos", "/data")), volumes=volumes(vol_pvc("datos", "ia-datos"))))
 
 # ------------------------------------------------------------------ plataforma
@@ -168,7 +176,7 @@ URLS = {"MENU_URL": "http://menu-inventario-service:8080", "COMENSALES_URL": COM
 salida.append(despliegue("api-gateway", f"{GHCR}/api-gateway:latest", 8080, {
     "PORT": "8080", "AUTH_DISABLED": "true", "KEYCLOAK_URL": "http://keycloak:8080", "KEYCLOAK_REALM": "comedor-uagrm",
     "KEYCLOAK_ADMIN": S("kc-admin"), "KEYCLOAK_ADMIN_PASSWORD": S("kc-admin-pass"), "IA_URL": "http://ia-ml-service:8080", **URLS}))
-salida.append(despliegue("graphql-gateway", f"{GHCR}/graphql-gateway:latest", 4000, {"PORT": "4000", **URLS}))
+salida.append(despliegue("graphql-gateway", f"{GHCR}/graphql-gateway:latest", 4000, {"PORT": "4000", **URLS}, sonda_tcp=True))
 salida.append(despliegue("keycloak", "quay.io/keycloak/keycloak:25.0", 8080, {
     "KEYCLOAK_ADMIN": S("kc-admin"), "KEYCLOAK_ADMIN_PASSWORD": S("kc-admin-pass"), "KC_HTTP_ENABLED": "true",
     "KC_HOSTNAME_STRICT": "false", "KC_PROXY_HEADERS": "xforwarded"}, mem="700Mi", limite="1500Mi", pull=False,
@@ -177,9 +185,12 @@ salida.append(despliegue("keycloak", "quay.io/keycloak/keycloak:25.0", 8080, {
 salida.append(despliegue("n8n", "n8nio/n8n:latest", 5678, {
     "N8N_BASIC_AUTH_ACTIVE": "true", "N8N_BASIC_AUTH_USER": S("n8n-user"), "N8N_BASIC_AUTH_PASSWORD": S("n8n-pass"),
     "N8N_PORT": "5678", "GENERIC_TIMEZONE": "America/La_Paz", "N8N_BLOCK_ENV_ACCESS_IN_NODE": "false", "TELEGRAM_BOT_TOKEN": S("telegram"),
+    "NODE_FUNCTION_ALLOW_BUILTIN": "crypto", "N8N_CLAVE": S("n8n-clave"),
+    # Firebase Cloud Messaging (push): JSON de la cuenta de servicio, desde respaldo/firebase-admin.json
+    "FIREBASE_CREDENCIALES": S("firebase"),
     "IA_URL": "http://ia-ml-service:8080", "MENU_URL": "http://menu-inventario-service:8080", "PAGOS_URL": PAGOS_URL},
     mem="400Mi", limite="1Gi", pull=False,
-    comando='["sh", "-c", "for f in /flows/*.json; do n8n import:workflow --input=$f; done; n8n update:workflow --id=telegramComedor01 --active=true; exec n8n start"]',
+    comando='["sh", "-c", "for f in /flows/*.json; do n8n import:workflow --input=$f; done; for w in telegramComedor01 notificarComedor01 ordenAprobada01 reposicionInsumos01; do n8n update:workflow --id=$w --active=true; done; exec n8n start"]',
     volmounts=mounts(montaje("flujos", "/flows")), volumes=volumes(vol_cm("flujos", "flujos-n8n"))))
 for nombre, img, puerto in [("shell", "shell", 80), ("backoffice-gestion", "backoffice-gestion", 80),
                             ("portal-estudiante", "portal-estudiante", 80), ("inteligencia-negocio", "inteligencia-negocio", 3003)]:

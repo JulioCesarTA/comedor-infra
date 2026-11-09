@@ -1,4 +1,5 @@
 {
+  "id": "reposicionInsumos01",
   "name": "Flujo 2 - Reposición de insumos (nocturno)",
   "nodes": [
     {
@@ -10,57 +11,35 @@
       "parameters": { "rule": { "interval": [{ "field": "cronExpression", "expression": "0 23 * * *" }] } }
     },
     {
-      "id": "stock-bajo",
-      "name": "GET /insumos/stock-bajo",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [460, 300],
-      "parameters": { "url": "={{ ($env.MENU_URL || 'http://menu-inventario-service:8080') + '/insumos/stock-bajo' }}" }
-    },
-    {
-      "id": "generar-orden",
-      "name": "Generar borrador OC",
+      "id": "consultar",
+      "name": "¿Hay insumos que reponer?",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [680, 300],
+      "position": [480, 300],
       "parameters": {
-        "jsCode": "const items = $json.map(i => ({ insumoId: i.id, nombre: i.nombre, cantidad: Math.max(10, i.stockMinimo * 2) }));\nreturn [{ json: { fecha: new Date().toISOString(), items, estado: 'borrador' } }];"
+        "jsCode": "// El borrador lo calcula menu-inventario-service. Sin stock bajo el flujo termina aquí.\nconst lineas = await this.helpers.httpRequest({ url: `${$env.MENU_URL}/insumos/orden-compra-borrador`, json: true });\nreturn lineas.length ? [{ json: { objetivo: 'Reposición nocturna de insumos', contexto: {} } }] : [];"
       }
     },
     {
-      "id": "email-admin",
-      "name": "Email al administrador",
-      "type": "n8n-nodes-base.emailSend",
-      "typeVersion": 2.1,
-      "position": [900, 220],
-      "parameters": {
-        "fromEmail": "automatizacion@comedor.uagrm.edu.bo",
-        "toEmail": "admin@comedor.uagrm.edu.bo",
-        "subject": "Orden de compra (borrador) — aprobar",
-        "text": "={{ JSON.stringify($json.items, null, 2) }}"
-      }
-    },
-    {
-      "id": "registrar-pago",
-      "name": "POST /proveedores/pagos",
+      "id": "proponer",
+      "name": "Pedir aprobación al administrador",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [900, 380],
+      "position": [720, 300],
       "parameters": {
         "method": "POST",
-        "url": "={{ ($env.PAGOS_URL || 'http://pagos-tickets-service:8080') + '/proveedores/pagos' }}",
+        "url": "={{ $env.IA_URL + '/agentes/inventario-compras' }}",
         "sendBody": true,
-        "contentType": "json",
-        "jsonBody": "={{ JSON.stringify($json) }}"
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": { "timeout": 120000 }
       }
     }
   ],
   "connections": {
-    "Cada noche 23:00": { "main": [[{ "node": "GET /insumos/stock-bajo", "type": "main", "index": 0 }]] },
-    "GET /insumos/stock-bajo": { "main": [[{ "node": "Generar borrador OC", "type": "main", "index": 0 }]] },
-    "Generar borrador OC": { "main": [[
-      { "node": "Email al administrador", "type": "main", "index": 0 },
-      { "node": "POST /proveedores/pagos", "type": "main", "index": 0 }
-    ]] }
-  }
+    "Cada noche 23:00": { "main": [[{ "node": "¿Hay insumos que reponer?", "type": "main", "index": 0 }]] },
+    "¿Hay insumos que reponer?": { "main": [[{ "node": "Pedir aprobación al administrador", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" }
 }

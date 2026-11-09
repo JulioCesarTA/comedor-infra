@@ -254,6 +254,8 @@ spec:
       labels: { app: ia-ml-service }
     spec:
       enableServiceLinks: false   # evita que Kubernetes inyecte variables tipo DYNAMODB_LOCAL_PORT que rompen a localstack
+      securityContext:
+        fsGroup: 101
       containers:
       - name: ia-ml-service
         image: 483549541027.dkr.ecr.us-west-2.amazonaws.com/comedor/ia-ml-service:latest
@@ -315,8 +317,10 @@ spec:
           valueFrom: { secretKeyRef: { name: comedor, key: s3-key } }
         - name: S3_SECRET_ACCESS_KEY
           valueFrom: { secretKeyRef: { name: comedor, key: s3-secret } }
-        - name: FIREBASE_CREDENCIALES
-          valueFrom: { secretKeyRef: { name: comedor, key: firebase } }
+        - name: N8N_URL
+          value: "http://n8n:5678"
+        - name: N8N_CLAVE
+          valueFrom: { secretKeyRef: { name: comedor, key: n8n-clave } }
         readinessProbe:
           httpGet: { path: /health, port: 8080 }
           initialDelaySeconds: 20
@@ -427,6 +431,10 @@ spec:
           value: "http://64.236.51.69:8082"
         - name: PAGOS_URL
           value: "http://34.70.76.125:8083"
+        readinessProbe:
+          tcpSocket: { port: 4000 }
+          initialDelaySeconds: 5
+          periodSeconds: 5
         resources:
           requests: { memory: 128Mi, cpu: 20m }
           limits: { memory: 512Mi }
@@ -512,7 +520,7 @@ spec:
       - name: n8n
         image: n8nio/n8n:latest
         imagePullPolicy: Always
-        command: ["sh", "-c", "for f in /flows/*.json; do n8n import:workflow --input=$f; done; n8n update:workflow --id=telegramComedor01 --active=true; exec n8n start"]
+        command: ["sh", "-c", "for f in /flows/*.json; do n8n import:workflow --input=$f; done; for w in telegramComedor01 notificarComedor01 ordenAprobada01 reposicionInsumos01; do n8n update:workflow --id=$w --active=true; done; exec n8n start"]
         ports:
         - containerPort: 5678
         env:
@@ -530,6 +538,12 @@ spec:
           value: "false"
         - name: TELEGRAM_BOT_TOKEN
           valueFrom: { secretKeyRef: { name: comedor, key: telegram } }
+        - name: NODE_FUNCTION_ALLOW_BUILTIN
+          value: "crypto"
+        - name: N8N_CLAVE
+          valueFrom: { secretKeyRef: { name: comedor, key: n8n-clave } }
+        - name: FIREBASE_CREDENCIALES
+          valueFrom: { secretKeyRef: { name: comedor, key: firebase } }
         - name: IA_URL
           value: "http://ia-ml-service:8080"
         - name: MENU_URL

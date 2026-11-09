@@ -30,7 +30,7 @@ kubectl -n comedor create secret generic comedor \
   --from-literal=n8n-user="$(leer .env N8N_BASIC_AUTH_USER)" --from-literal=n8n-pass="$(leer respaldo/env.ec2 N8N_BASIC_AUTH_PASSWORD)" \
   --from-literal=stripe="$(leer .env.secrets STRIPE_SECRET_KEY)" --from-literal=telegram="$(leer .env.secrets TELEGRAM_BOT_TOKEN)" \
   --from-literal=s3-key="$(leer respaldo/s3-bandejas.env S3_ACCESS_KEY_ID)" --from-literal=s3-secret="$(leer respaldo/s3-bandejas.env S3_SECRET_ACCESS_KEY)" \
-  --from-literal=firebase="$(cat respaldo/firebase-admin.json)" \
+  --from-literal=firebase="$(cat respaldo/firebase-admin.json)" --from-literal=n8n-clave="$(leer .env.cloud.nuevo N8N_CLAVE)" \
   --dry-run=client -o yaml | kubectl apply -f -
 python infra/eksctl/realm.py "$EKS_EDGE_IP" deploy/ec2/realm/comedor-realm.json
 kubectl -n comedor create configmap realm --from-file=comedor-realm.json=deploy/ec2/realm/comedor-realm.json --dry-run=client -o yaml | kubectl apply -f -
@@ -41,7 +41,7 @@ python infra/k8s/eks/generar_aws.py "$EKS_EDGE_IP" "$COMENSALES_IP" "$PAGOS_IP" 
 kubectl apply -f infra/k8s/eks/comedor-aws.yaml
 
 echo "== datos: esperando a que arranquen las bases"
-kubectl -n comedor rollout status deploy/mongo deploy/postgres-cqrs deploy/dynamodb-local --timeout=600s
+kubectl -n comedor rollout status deploy/mongo deploy/postgres-cqrs --timeout=600s
 exec_in() { kubectl -n comedor exec -i deploy/$1 -- "${@:2}"; }
 [ -f respaldo/mongo.archive.gz ] && exec_in mongo sh -c 'mongorestore --archive --gzip --drop -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin' < respaldo/mongo.archive.gz 2>&1 | tail -1
 exec_in postgres-cqrs sh -c 'psql -q -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"' >/dev/null 2>&1 || true

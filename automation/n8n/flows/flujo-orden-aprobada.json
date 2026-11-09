@@ -1,0 +1,30 @@
+{
+  "id": "ordenAprobada01",
+  "name": "Flujo 2 - Orden de compra aprobada",
+  "nodes": [
+    {
+      "id": "recibir",
+      "name": "POST /webhook/orden-aprobada",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "orden-aprobada-comedor",
+      "parameters": { "httpMethod": "POST", "path": "orden-aprobada", "responseMode": "lastNode", "options": {} }
+    },
+    {
+      "id": "registrar",
+      "name": "Registrar obligación de pago por proveedor",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 300],
+      "parameters": {
+        "jsCode": "// Una obligación por proveedor en pagos-tickets-service. Si falla, el flujo responde error y la propuesta queda en ERROR.\nconst { headers, body: b } = $input.first().json;\nif (!$env.N8N_CLAVE || headers['x-clave-comedor'] !== $env.N8N_CLAVE) throw new Error('Clave incorrecta');\nfor (const p of b.proveedores) {\n  await this.helpers.httpRequest({ method: 'POST', url: `${$env.PAGOS_URL}/proveedores/pagos`, json: true,\n    body: { ordenId: b.ordenId, proveedor: p.proveedor, monto: p.monto, detalle: p.detalle } });\n}\nreturn [{ json: { ok: true, registradas: b.proveedores.length } }];"
+      }
+    }
+  ],
+  "connections": {
+    "POST /webhook/orden-aprobada": { "main": [[{ "node": "Registrar obligación de pago por proveedor", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" }
+}
