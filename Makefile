@@ -22,9 +22,9 @@ help:
 	@echo "  make build             rebuild de imágenes locales"
 	@echo "  make test              corre tests de los 4 servicios"
 	@echo "  make aws-local-init    (re)crea tablas DynamoDB + topics SNS en LocalStack"
-	@echo "  make deploy-aws        aplica K8s a EKS"
-	@echo "  make deploy-azure      aplica K8s a AKS"
-	@echo "  make deploy-gcp        aplica K8s a GKE"
+	@echo "  make deploy-aws        despliega la parte AWS en EKS"
+	@echo "  make deploy-azure      despliega comensales en AKS"
+	@echo "  make deploy-gcp        despliega pagos en GKE"
 
 up:
 	docker compose up -d --build
@@ -74,10 +74,10 @@ aws-local-init:
 
 # ---------- Despliegue multi-nube (requiere kubectl + credenciales) ----------
 deploy-aws:
-	kubectl --context eks-comedor apply -R -f infra/k8s/aws/
+	set -a; . ./.env.cloud.nuevo; set +a; bash infra/eksctl/desplegar-eks.sh
 
 deploy-azure:
-	kubectl --context aks-comedor apply -R -f infra/k8s/azure/
+	bash infra/azure/desplegar-azure.sh
 
 deploy-gcp:
-	kubectl --context gke-comedor apply -R -f infra/k8s/gcp/
+	powershell -ExecutionPolicy Bypass -File infra/gcp/desplegar-gcp.ps1

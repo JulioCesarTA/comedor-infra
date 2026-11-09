@@ -31,7 +31,7 @@ kubectl -n comedor create secret generic comedor \
   --from-literal=s3-key="$(leer respaldo/s3-bandejas.env S3_ACCESS_KEY_ID)" --from-literal=s3-secret="$(leer respaldo/s3-bandejas.env S3_SECRET_ACCESS_KEY)" \
   --from-literal=firebase="$(cat respaldo/firebase-admin.json)" \
   --dry-run=client -o yaml | kubectl apply -f -
-python infra/ec2/realm.py "$EKS_EDGE_IP" deploy/ec2/realm/comedor-realm.json
+python infra/eksctl/realm.py "$EKS_EDGE_IP" deploy/ec2/realm/comedor-realm.json
 kubectl -n comedor create configmap realm --from-file=comedor-realm.json=deploy/ec2/realm/comedor-realm.json --dry-run=client -o yaml | kubectl apply -f -
 kubectl -n comedor create configmap flujos-n8n --from-file=automation/n8n/flows --dry-run=client -o yaml | kubectl apply -f -
 kubectl -n comedor create configmap init-localstack --from-file=init-localstack.sh=eventbus/infra/init-localstack.sh --dry-run=client -o yaml | kubectl apply -f -
@@ -47,6 +47,6 @@ exec_in postgres-cqrs sh -c 'psql -q -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "D
 exec_in postgres-cqrs sh -c 'psql -q -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < respaldo/cqrs_read.sql >/dev/null 2>&1 || true
 kubectl -n comedor rollout status deploy/ia-ml-service --timeout=900s
 for t in sagas idempotency_keys; do kubectl -n comedor cp respaldo/dynamodb-$t.json $(kubectl -n comedor get pod -l app=ia-ml-service -o name | head -1 | sed 's#pod/##'):/tmp/dynamodb-$t.json; done
-kubectl -n comedor cp infra/ec2/cargar_dynamodb.py $(kubectl -n comedor get pod -l app=ia-ml-service -o name | head -1 | sed 's#pod/##'):/tmp/cargar_dynamodb.py
+kubectl -n comedor cp infra/eksctl/cargar_dynamodb.py $(kubectl -n comedor get pod -l app=ia-ml-service -o name | head -1 | sed 's#pod/##'):/tmp/cargar_dynamodb.py
 kubectl -n comedor exec deploy/ia-ml-service -- python /tmp/cargar_dynamodb.py
 echo "listo: https://$EKS_EDGE_IP"

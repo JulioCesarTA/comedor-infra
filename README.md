@@ -39,15 +39,13 @@ comedor/
 | Ruta | Para qué |
 |---|---|
 | `docker-compose.yml` | stack completo en local (4 microservicios, Mongo, 3 Postgres, DynamoDB local, localstack, Keycloak, n8n, gateways y frontends) |
-| `docker-compose.ec2.yml` | superposición para el despliegue en EC2 con HTTPS (un servidor por microservicio) |
 | `docker-compose.cloud.yml` | código local con datos en la nube (RDS, Atlas, DynamoDB) |
 | `auth/keycloak/` | realm de Keycloak (roles, clientes OIDC, usuarios demo) |
 | `automation/n8n/flows/` | flujos de n8n: bot de Telegram y reposición de insumos |
 | `eventbus/infra/` | temas SNS y colas SQS (script de localstack) |
-| `infra/k8s/{aws,azure,gcp}/` | manifiestos de Kubernetes por servicio y por nube |
+| `infra/k8s/eks/` · `azure/` · `gcp/` | manifiestos de Kubernetes: AWS (generados por `generar_aws.py`), Azure y GCP |
 | `infra/terraform/{aws,azure,gcp}/` | EKS/AKS/GKE, bases de datos gestionadas |
-| `infra/eksctl/` | clúster EKS con `eksctl` y recursos de AWS |
-| `infra/ec2/` | despliegue en EC2: servidores, nginx con Let's Encrypt, carga de datos |
+| `infra/eksctl/` | clúster EKS con `eksctl`, despliegue de AWS, encender/apagar nodos, RDS y recursos de AWS |
 | `docs/` | especificación (SPEC), checklist y notas de la materia |
 
 ## Dónde corre cada cosa (multi-nube, todo en Kubernetes)
@@ -81,8 +79,6 @@ Cada repositorio de servicio tiene `.github/workflows/cd.yml`: al hacer commit e
 
 Los runners viven en `C:ctions-runner\<repo>`; si se reinicia el PC hay que ejecutar `iniciar-runners.bat` y tener Docker Desktop abierto.
 Secretos de cada repositorio: AWS (usuario `comedor-ci`, solo ECR y el namespace `comedor`), `GCP_SA_KEY` y `AZURE_*`.
-
-> `infra/ec2/` y `docker-compose.ec2.yml` son la versión anterior (máquinas virtuales con Docker) y ya no están en uso.
 
 ## Secretos (no están en git)
 
