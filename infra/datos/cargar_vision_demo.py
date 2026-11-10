@@ -1,8 +1,13 @@
-"""Carga fotos de bandejas en el pipeline REAL de vision de ia-ml (TensorFlow en el servidor, fotos en S3):
+"""Demo de vision: carga fotos de bandejas en el pipeline REAL de vision de ia-ml (TensorFlow en el servidor, fotos en S3):
   1) referencias: una foto de bandeja llena por plato  -> POST /ml/vision/referencia
   2) bandejas: fotos reales parcialmente comidas + variantes sinteticas (se tapa parte de la comida con el color
      de la bandeja segun la mascara que devuelve el modelo) -> POST /ml/vision/bandeja (el modelo calcula el % restante)
-Usa port-forward al pod de ia-ml. Uso: python cargar_vision.py [--seco]
+Usa port-forward al pod de ia-ml (credenciales de .env.cloud.nuevo). Fotos: carpeta FOTOS_BANDEJAS
+(por defecto ../pagos-tickets-service/im: 36 fotos de WhatsApp; ver MAPA para saber cual es cada plato).
+Uso (desde comedor-infra):
+    python infra/datos/cargar_vision_demo.py --seco    # muestra el mapeo foto -> plato y fechas
+    python infra/datos/cargar_vision_demo.py           # referencias + bandejas reales + 4 sinteticas por plato
+    python infra/datos/cargar_vision_demo.py --extra   # 8 bandejas sinteticas mas por plato (distribucion realista)
 """
 import io
 import json
@@ -16,8 +21,8 @@ import numpy as np
 import requests
 from PIL import Image, ImageFilter, ImageOps
 
-RAIZ = Path(r"c:\Users\jtorr\Desktop\comedor-repos\comedor-infra")
-IM = sorted(Path(r"c:\Users\jtorr\Desktop\comedor-repos\pagos-tickets-service\im").glob("*.jpeg"))
+RAIZ = Path(__file__).resolve().parents[2]            # comedor-infra
+IM = sorted(Path(os.environ.get("FOTOS_BANDEJAS", RAIZ.parent / "pagos-tickets-service" / "im")).glob("*.jpeg"))
 SECO = "--seco" in sys.argv
 PUERTO = 18080
 API = f"http://localhost:{PUERTO}"
