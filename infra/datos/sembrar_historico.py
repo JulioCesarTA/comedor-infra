@@ -265,7 +265,7 @@ def deshacer(aws, azure, gcp, dbu, gu):
     print("  Azure reservas:", psql(azure, "postgres-comensales", dbu, "comensales_reservas",
                                     "delete from reservas where \"menuId\" like 'hist-%'").strip())
     print("  Azure becas:", psql(azure, "postgres-comensales", dbu, "comensales_reservas",
-                                 "delete from becas where \"estudianteId\" in (select id from estudiantes where \"registroUniv\" like '23%')").strip())
+                                 "delete from becas where \"estudianteId\" in (select id::text from estudiantes where \"registroUniv\" like '23%')").strip())
     print("  Azure estudiantes:", psql(azure, "postgres-comensales", dbu, "comensales_reservas",
                                        "delete from estudiantes where \"registroUniv\" like '23%'").strip())
     # Lo real en pagos empieza el 2/11/2026: todo lo anterior es sembrado
@@ -293,11 +293,12 @@ def main():
     aws, azure, gcp = kube_aws(), kube_azure(), kube_gcp()
     dbu = secreto(azure, "comensales-secretos", "db-user")
     gu = secreto(gcp, "pagos-secretos", "db-user")
-    ya = psql(azure, "postgres-comensales", dbu, "comensales_reservas", "select count(*) from reservas where \"menuId\" like 'hist-%'").strip()
-    if ya != "0":
-        if not args.rehacer:
-            sys.exit(f"Ya hay {ya} reservas sembradas ('hist-'). Para reemplazarlas corre con --rehacer.")
-        deshacer(aws, azure, gcp, dbu, gu)
+    ya = psql(azure, "postgres-comensales", dbu, "comensales_reservas",
+              "select count(*) from reservas where \"menuId\" like 'hist-%' union all select count(*) from estudiantes where \"registroUniv\" like '23%'").split()
+    if args.rehacer:
+        deshacer(aws, azure, gcp, dbu, gu)          # siempre: los borrados son idempotentes y asi se completa un intento a medias
+    elif any(n != "0" for n in ya):
+        sys.exit(f"Ya hay datos sembrados ({ya[0]} reservas 'hist-', {ya[1]} estudiantes 23xxxxx). Para reemplazarlos corre con --rehacer.")
 
     existentes = [l.strip() for l in psql(azure, "postgres-comensales", dbu, "comensales_reservas", "select id from estudiantes").splitlines() if l.strip()]
     est_ids = existentes + [n["id"] for n in nuevos]
@@ -340,7 +341,7 @@ if __name__ == "__main__":
 # DESHACER a mano (es lo mismo que hace --rehacer antes de cargar):
 #   Mongo   : db.menus.deleteMany({_id: /^hist-/})
 #   Azure   : delete from reservas where "menuId" like 'hist-%';
-#             delete from becas where "estudianteId" in (select id from estudiantes where "registroUniv" like '23%');
+#             delete from becas where "estudianteId" in (select id::text from estudiantes where "registroUniv" like '23%');
 #             delete from estudiantes where "registroUniv" like '23%';
 #   GCP     : delete from tickets where pago_id in (select id from pagos where created_at < '2026-11-01');
 #             delete from pagos where created_at < '2026-11-01';
