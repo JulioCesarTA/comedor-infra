@@ -6,8 +6,12 @@ Usa port-forward al pod de ia-ml (credenciales de .env.cloud.nuevo). Fotos: carp
 (por defecto ../pagos-tickets-service/im: 36 fotos de WhatsApp; ver MAPA para saber cual es cada plato).
 Uso (desde comedor-infra):
     python infra/datos/cargar_vision_demo.py --seco    # muestra el mapeo foto -> plato y fechas
-    python infra/datos/cargar_vision_demo.py           # referencias + bandejas reales + 4 sinteticas por plato
-    python infra/datos/cargar_vision_demo.py --extra   # 8 bandejas sinteticas mas por plato (distribucion realista)
+    python infra/datos/cargar_vision_demo.py           # referencias + 4 sinteticas por plato + bandejas reales
+    python infra/datos/cargar_vision_demo.py --extra   # ademas 8 sinteticas mas por plato (distribucion realista)
+    python infra/datos/cargar_vision_demo.py --rehacer --extra   # borra antes la demo anterior (no toca lo del celular)
+    python infra/datos/cargar_vision_demo.py --plato plato-pollo-frito   # solo ese plato
+    python infra/datos/cargar_vision_demo.py --pollo --rehacer   # SOLO la carpeta im/pollo: bandeja llena + 10 bandejas,
+                                                                 # y compara cada sector con im/pollo/etiquetas.csv
 """
 import io
 import json
@@ -22,37 +26,63 @@ import requests
 from PIL import Image, ImageFilter, ImageOps
 
 RAIZ = Path(__file__).resolve().parents[2]            # comedor-infra
-IM = sorted(Path(os.environ.get("FOTOS_BANDEJAS", RAIZ.parent / "pagos-tickets-service" / "im")).glob("*.jpeg"))
+CARPETA_IM = Path(os.environ.get("FOTOS_BANDEJAS", RAIZ.parent / "pagos-tickets-service" / "im"))
+IM = sorted(CARPETA_IM.glob("*.jpeg"))
 SECO = "--seco" in sys.argv
 PUERTO = 18080
 API = f"http://localhost:{PUERTO}"
 
-# plato del historial -> (indice de la foto llena = referencia, indices de fotos reales comidas)
+# plato del historial -> (indice de la foto llena = referencia, indices de fotos reales comidas, nombres de sectores).
+# Cada bandeja comida se compara con la foto llena de SU MISMA bandeja (misma comida en el mismo compartimento); si un
+# plato se sirvio en dos bandejas distintas, va una lista. Pollo: #19 (bandeja blanca) -> #27 ; #28 (beige) -> #31.
+# Los nombres dicen como se llama cada sector en ese plato (la red reconoce arroz/ensalada/guarnicion/proteina/postre).
 MAPA = {
     # Almuerzo
-    "plato-milanesa":           (17, [30, 22, 34]),
-    "plato-asado-de-res":       (18, [25, 32]),
-    "plato-silpancho":          (20, [26]),
-    "plato-chicharron":         (29, [35]),
-    "plato-charque":            (21, [23]),
-    "plato-tallarin-con-carne": (24, []),
-    "plato-pique-macho":        (5, []),
-    "plato-arroz-con-pollo":    (12, []),
-    "plato-fricase":            (13, []),
-    "plato-majadito":           (9, []),
-    "plato-locro":              (10, []),
-    "plato-sopa-de-mani":       (14, []),
+    "plato-milanesa":           (17, [30, 22, 34, 26], {"proteina": "milanesa", "guarnicion": "papas", "postre": "gelatina"}),
+    "plato-asado-de-res":       (18, [32], {"proteina": "carne asada", "guarnicion": "papas", "postre": "gelatina"}),
+    "plato-silpancho":          (20, [25], {"proteina": "carne", "guarnicion": "puré", "postre": "manzana"}),
+    "plato-chicharron":         (29, [35], {"proteina": "cerdo", "guarnicion": "papas", "postre": "fruta"}),
+    "plato-charque":            (21, [23], {"proteina": "pescado", "guarnicion": "yuca", "postre": "helado"}),
+    "plato-tallarin-con-carne": (24, [], {"proteina": "albóndigas", "guarnicion": "tallarín", "postre": "jugo"}),
+    "plato-pique-macho":        (5, [], {"proteina": "carne", "guarnicion": "puré", "postre": "pera"}),
+    "plato-arroz-con-pollo":    (12, [], {"proteina": "pollo", "guarnicion": "frejol", "postre": "manzana"}),
+    "plato-fricase":            (13, [], {"proteina": "cerdo", "guarnicion": "frejol", "postre": "manzana"}),
+    "plato-majadito":           (9, [], {"proteina": "carne", "guarnicion": "papas", "postre": "helado"}),
+    "plato-locro":              (10, [], {"proteina": "huevo", "guarnicion": "lentejas y plátano", "postre": "helado"}),
+    "plato-sopa-de-mani":       (14, [], {"proteina": "tacos", "guarnicion": "sopa y frejol", "postre": "jugo"}),
     # Cena
-    "plato-pollo-frito":        (19, [27, 28, 31]),
-    "plato-sopa-de-fideo":      (1, []),
-    "plato-arroz-con-queso":    (16, [33]),
-    "plato-tortilla-de-papa":   (0, []),
+    "plato-pollo-frito":        [(19, [27], {"proteina": "pollo", "guarnicion": "papas fritas", "postre": "naranja"}),
+                                 (28, [31], {"proteina": "pollo", "guarnicion": "papas fritas", "postre": "fruta"})],
+    "plato-sopa-de-fideo":      (1, [], {"guarnicion": "pan y tallarín", "ensalada": "ensalada y verduras", "postre": "gelatina"}),
+    "plato-arroz-con-queso":    (16, [33], {"proteina": "pescado", "guarnicion": "yuca", "postre": "helado"}),
+    "plato-tortilla-de-papa":   (0, [], {"proteina": "pescado", "guarnicion": "puré", "ensalada": "pepino", "postre": "naranja"}),
 }
 # fracciones de comida "comida" (quitada) para las bandejas sinteticas; el resto queda
 COMIDO_SINTETICO = [0.20, 0.45, 0.70, 0.90]
 # --extra: mas bandejas por plato con la distribucion real de un comedor (la mayoria casi termina el plato)
 COMIDO_EXTRA = [0.97, 0.95, 0.93, 0.90, 0.88, 0.85, 0.80, 0.75]
 EXTRA = "--extra" in sys.argv
+SOLO = sys.argv[sys.argv.index("--plato") + 1] if "--plato" in sys.argv else None
+
+
+REHACER = "--rehacer" in sys.argv
+
+
+def pares():
+    """[(plato, indice referencia, reales, nombres)] respetando --plato."""
+    return [(p, i_ref, reales, nombres) for p, v in MAPA.items() if SOLO in (None, p)
+            for i_ref, reales, nombres in (v if isinstance(v, list) else [v])]
+
+
+def borrar_demo(platos: list[str]):
+    """--rehacer: borra del pod las referencias y bandejas de la demo (origen servidor) de esos platos.
+    Lo registrado desde el celular (origen movil) no se toca."""
+    marcas = ",".join("?" * len(platos))
+    py = ("import sqlite3,sys,json;p=json.loads(sys.argv[1]);c=sqlite3.connect('/data/agentes.db');"
+          f"b=c.execute(\"DELETE FROM bandejas WHERE plato_id IN ({marcas}) AND COALESCE(origen,'servidor')='servidor'\",p).rowcount;"
+          f"r=c.execute(\"DELETE FROM ref_porcion WHERE plato_id IN ({marcas}) AND COALESCE(origen,'servidor')='servidor'\",p).rowcount;"
+          "c.commit();print(f'borradas {r} referencias y {b} bandejas')")
+    print(correr(["kubectl", "-n", "comedor", "exec", "deploy/ia-ml-service", "--", "python", "-c", py, json.dumps(platos)], env=AWS).strip())
 
 
 def env_archivo(nombre):
@@ -135,113 +165,105 @@ def bandeja_sintetica(img: Image.Image, mascara: list, comido: float, semilla: i
     return Image.fromarray(np.clip(salida, 0, 255).astype(np.uint8))
 
 
-def mascara_local(img: Image.Image) -> list:
-    """Misma regla que usa el servidor para separar comida de bandeja (saturacion + textura, umbral de Otsu),
-    calculada aqui para no volver a registrar la referencia."""
-    REJ, LADO = 56, 224
-    pq = img.resize((LADO, LADO))
-    paso = LADO // REJ
-    sat = (np.asarray(pq.convert("HSV"), dtype=np.float32)[..., 1] / 255.0).reshape(REJ, paso, REJ, paso).mean(axis=(1, 3)).ravel()
-    tex = (np.asarray(pq.convert("L"), dtype=np.float32) / 255.0).reshape(REJ, paso, REJ, paso).std(axis=(1, 3)).ravel()
-    norm = lambda v: v / (v.max() + 1e-8)
-    v = norm(sat) + norm(tex)
-    mejor, umbral = -1.0, float(np.median(v))
-    for t in np.linspace(v.min(), v.max(), 64)[1:-1]:
-        a, b = v[v <= t], v[v > t]
-        if len(a) < 5 or len(b) < 5:
-            continue
-        w = len(a) * len(b) / len(v) ** 2 * (a.mean() - b.mean()) ** 2
-        if w > mejor:
-            mejor, umbral = w, float(t)
-    m = (v > umbral).reshape(REJ, REJ).astype(np.float32)
-    p = np.pad(m, 1, mode="edge")
-    vecinos = sum(p[i:i + REJ, j:j + REJ] for i in range(3) for j in range(3))
-    return (vecinos >= 5).astype(int).tolist()
+def esperar_api(pf):
+    for _ in range(40):
+        try:
+            requests.get(f"{API}/health", timeout=3); return
+        except Exception:
+            time.sleep(1)
+    pf.terminate(); raise SystemExit("ia-ml no responde por el port-forward")
 
 
-def extra():
-    """Agrega bandejas sinteticas (distribucion realista) a las referencias YA registradas de cada plato."""
+def texto_sectores(b: dict) -> str:
+    return " · ".join(f"{s['nombre']} {s['restante']:.0f}%" for s in b.get("sectores") or []) or "(sin sectores)"
+
+
+def pollo():
+    """Demo del pollo: la bandeja llena y las 10 bandejas de im/pollo, comparando cada sector con etiquetas.csv."""
+    import csv
+    carpeta, plato = CARPETA_IM / "pollo", "plato-pollo-frito"
+    fecha, turno = ultimo_servicio().get(plato, ("2026-11-09", "CENA"))
+    if REHACER:
+        borrar_demo([plato])
+    verdad = {r["archivo"]: r for r in csv.DictReader(open(carpeta / "etiquetas.csv", encoding="utf-8"))}
+    col = {"mandarina": "mandarina", "puré": "pure", "ensalada": "ensalada", "arroz": "arroz", "pollo apanado": "pollo_apanado"}
     pf = subprocess.Popen(["kubectl", "-n", "comedor", "port-forward", "deploy/ia-ml-service", f"{PUERTO}:8080"],
                           env={**os.environ, **AWS}, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
-        for _ in range(30):
-            try:
-                requests.get(f"{API}/health", timeout=3); break
-            except Exception:
-                time.sleep(1)
-        refs = requests.get(f"{API}/ml/vision/referencias", timeout=60).json()
-        ultima = {}
-        for r in refs:                                   # la mas reciente por plato
-            ultima.setdefault(r["plato_id"], r)
-        for plato, (i_ref, _) in MAPA.items():
-            r = ultima.get(plato)
-            if not r:
-                print(f"{plato}: sin referencia registrada, se salta"); continue
-            img = abrir(i_ref)
-            masc = mascara_local(img)
-            res = []
-            for k, comido in enumerate(COMIDO_EXTRA):
-                sint = bandeja_sintetica(img, masc, comido, semilla=(hash((plato, "x", k)) % 10000))
-                rb = requests.post(f"{API}/ml/vision/bandeja", files={"file": (f"extra_{plato}_{k}.jpg", jpeg(sint), "image/jpeg")},
-                                   data={"ref_id": r["id"]}, timeout=300)
-                res.append(rb.json()["restantePct"] if rb.status_code == 200 else f"ERR{rb.status_code}")
-            print(f"{plato:26s} ref {r['id']} -> restantes {res}")
+        esperar_api(pf)
+        r = requests.post(f"{API}/ml/vision/referencia", timeout=300,
+                          files={"file": ("bandeja_llena.jpg", jpeg(ImageOps.exif_transpose(Image.open(carpeta / "bandeja_llena.jpeg")).convert("RGB")), "image/jpeg")},
+                          data={"plato_id": plato, "fecha": fecha, "turno": turno})
+        r.raise_for_status()
+        ref = r.json()
+        print(f"REFERENCIA {plato} {fecha} {turno} id {ref['id']}: " + ", ".join(f"{s['nombre']} ({s['zonas']} zonas)" for s in ref["sectores"]))
+        print("\nfoto              " + "".join(f"{n:>22s}" for n in col) + "      promedio")
+        errores = []
+        for f in sorted(carpeta.glob("bandeja_[0-9]*.jpg")):
+            b = requests.post(f"{API}/ml/vision/bandeja", data={"ref_id": ref["id"]}, timeout=300,
+                              files={"file": (f.name, jpeg(Image.open(f).convert("RGB")), "image/jpeg")}).json()
+            got = {s["nombre"]: s["restante"] for s in b["sectores"]}
+            v = {n: float(verdad[f.name][c]) for n, c in col.items()}
+            errores += [abs(got.get(n, 0) - v[n]) for n in col]
+            print(f"{f.name:16s}  " + "".join(f"{got.get(n, 0):10.0f} (csv {v[n]:4.0f})  " for n in col)
+                  + f"   {b['restantePct']:5.1f} (csv {np.mean(list(v.values())):.1f})")
+        print(f"\nerror medio por sector contra etiquetas.csv: {np.mean(errores):.1f} puntos (peor {max(errores):.0f})")
     finally:
         pf.terminate()
 
 
 def main():
-    if EXTRA:
-        return extra()
+    if "--pollo" in sys.argv:
+        return pollo()
     fechas = ultimo_servicio()
     print(f"platos con fecha de ultimo servicio: {len(fechas)}")
     if SECO:
-        for p, (ref, reales) in MAPA.items():
-            print(f"  {p:26s} ref #{ref:2d} reales {reales} ultimo {fechas.get(p)}")
+        for p, ref, reales, nombres in pares():
+            print(f"  {p:26s} ref #{ref:2d} reales {reales} ultimo {fechas.get(p)} sectores {nombres}")
         return
+    if REHACER:
+        borrar_demo(sorted({p for p, *_ in pares()}))
 
     pf = subprocess.Popen(["kubectl", "-n", "comedor", "port-forward", "deploy/ia-ml-service", f"{PUERTO}:8080"],
                           env={**os.environ, **AWS}, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
-        for _ in range(30):
-            try:
-                requests.get(f"{API}/health", timeout=3); break
-            except Exception:
-                time.sleep(1)
-        resumen = []
-        for plato, (i_ref, reales) in MAPA.items():
+        esperar_api(pf)
+        registradas, resumen = [], {}
+        # 1) referencias + bandejas sinteticas
+        for plato, i_ref, reales, nombres in pares():
             fecha, turno = fechas.get(plato, ("2026-11-09", "ALMUERZO"))
             img = abrir(i_ref)
             r = requests.post(f"{API}/ml/vision/referencia", files={"file": (f"ref_{plato}.jpg", jpeg(img), "image/jpeg")},
-                              data={"plato_id": plato, "fecha": fecha, "turno": turno}, timeout=300)
+                              data={"plato_id": plato, "fecha": fecha, "turno": turno, "nombres": json.dumps(nombres, ensure_ascii=False)},
+                              timeout=300)
             if r.status_code != 200:
                 print(f"REF {plato} #{i_ref} FALLO {r.status_code}: {r.text[:160]}"); continue
             ref = r.json()
-            print(f"REF {plato} #{i_ref} {fecha} {turno} -> id {ref['id']} fComida {ref['fraccionComida']}" + (f" ADV: {ref['advertencia']}" if ref.get("advertencia") else ""))
-            bandejas = []
-            # fotos reales comidas
-            for i in reales:
-                rb = requests.post(f"{API}/ml/vision/bandeja", files={"file": (f"bandeja_{i}.jpg", jpeg(abrir(i)), "image/jpeg")},
-                                   data={"ref_id": ref["id"]}, timeout=300)
-                if rb.status_code == 200:
-                    b = rb.json(); bandejas.append(("real", i, b["restantePct"], b["confianza"]))
-                else:
-                    print(f"   bandeja real #{i} FALLO {rb.status_code}: {rb.text[:120]}")
-            # sinteticas
-            for k, comido in enumerate(COMIDO_SINTETICO):
-                sint = bandeja_sintetica(img, ref["mascara"], comido, semilla=hash((plato, k)) % 10000)
+            secs = ", ".join(f"{s['nombre']}({s['zonas']})" for s in ref.get("sectores") or [])
+            print(f"REF {plato} #{i_ref} {fecha} {turno} -> id {ref['id']} sectores: {secs}")
+            registradas.append((plato, i_ref, reales, ref))
+            for k, comido in enumerate(COMIDO_SINTETICO + (COMIDO_EXTRA if EXTRA else [])):
+                sint = bandeja_sintetica(img, ref["mascara"], comido, semilla=hash((plato, i_ref, k)) % 10000)
                 rb = requests.post(f"{API}/ml/vision/bandeja", files={"file": (f"sint_{plato}_{k}.jpg", jpeg(sint), "image/jpeg")},
                                    data={"ref_id": ref["id"]}, timeout=300)
                 if rb.status_code == 200:
-                    b = rb.json(); bandejas.append((f"sint-{int(comido*100)}%", k, b["restantePct"], b["confianza"]))
+                    resumen.setdefault(plato, []).append(rb.json()["restantePct"])
                 else:
                     print(f"   sintetica {comido} FALLO {rb.status_code}: {rb.text[:120]}")
-            for tipo, i, rest, conf in bandejas:
-                print(f"   bandeja {tipo:10s} #{i}: restante {rest}% (conf {conf})")
-            resumen.append((plato, len(bandejas), round(float(np.mean([b[2] for b in bandejas])), 1) if bandejas else None))
+        # 2) fotos reales comidas, al final: son las que aparecen primero en «Ultimas fotos analizadas»
+        print("\nBANDEJAS REALES (por sector y promedio)")
+        for plato, i_ref, reales, ref in registradas:
+            for i in reales:
+                rb = requests.post(f"{API}/ml/vision/bandeja", files={"file": (f"bandeja_{i}.jpg", jpeg(abrir(i)), "image/jpeg")},
+                                   data={"ref_id": ref["id"]}, timeout=300)
+                if rb.status_code != 200:
+                    print(f"   #{i_ref}->#{i} FALLO {rb.status_code}: {rb.text[:120]}"); continue
+                b = rb.json()
+                resumen.setdefault(plato, []).append(b["restantePct"])
+                print(f"  {plato:24s} #{i_ref:>2}->#{i:>2}: {texto_sectores(b)} | promedio {b['restantePct']}%")
         print("\nRESUMEN plato / bandejas / restante medio")
-        for p, n, m in resumen:
-            print(f"  {p:26s} {n:2d} {m}")
+        for p, v in resumen.items():
+            print(f"  {p:26s} {len(v):2d} {round(float(np.mean(v)), 1)}")
     finally:
         pf.terminate()
 
