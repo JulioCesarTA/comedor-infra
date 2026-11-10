@@ -1,0 +1,72 @@
+@startuml Secuencia_Predecir_Demanda
+title Diagrama de Secuencia - CU07: Predecir la demanda
+
+hide footbox
+skinparam sequence {
+  ArrowColor #2C3E50
+  LifeLineBorderColor #2C6CA5
+  ParticipantBorderColor #2C6CA5
+  ParticipantBackgroundColor #E8F4FD
+  ActorBorderColor #2C3E50
+}
+
+actor "Administrador" as Adm
+boundary "Vista\n(BI)" as Vista
+participant "Gateway\n(api-gw)" as GW
+control "PrediccionesRouter\n(MSIA)" as IA
+participant "MenuController\n(MSMenu)" as Ctrl
+database "BD Menu\n(MongoDB)" as Mongo
+participant "API Clima\n(OpenMeteo)" as Clima
+
+== Endpoint 1: GET /ml/regresion ==
+
+Adm -> Vista : abrir Predicción de demanda
+activate Vista
+Vista -> GW : GET /ml/regresion
+activate GW
+GW -> GW : requireAuth(token)
+GW -> IA : regresion_estado()
+activate IA
+IA -> IA : regresion.estado()
+IA -> Ctrl : historial(desde, hasta)
+activate Ctrl
+Ctrl -> Mongo : find({fecha: {$gte: desde, $lte: hasta}})
+activate Mongo
+Mongo --> Ctrl : menus
+deactivate Mongo
+Ctrl --> IA : menús con cupo y apartadas
+deactivate Ctrl
+IA -> Clima : temperatura_diaria(lat, lon)
+activate Clima
+Clima --> IA : temperaturas_historicas
+deactivate Clima
+opt si cambiaron los datos
+  IA -> IA : entrenar_modelo() con RandomForestRegressor
+end
+IA -> IA : predecir_demanda(fecha, turno, plato, cupo)
+IA --> GW : { metricas, importancias, serie, plan }
+deactivate IA
+GW --> Vista : 200 OK
+deactivate GW
+Vista --> Adm : muestra métricas y plan de cocina
+deactivate Vista
+
+== Endpoint 2: POST /ml/demanda ==
+
+Adm -> Vista : predecir(plato, fecha, turno)
+activate Vista
+Vista -> GW : POST /ml/demanda
+activate GW
+GW -> GW : requireAuth(token)
+GW -> IA : demanda(dto)
+activate IA
+IA -> IA : regresion.predecir(fecha, plato, turno)
+IA -> IA : _predecir(fecha, turno, plato, cupo)
+IA --> GW : { racionesEstimadas, diaSemana, esFeriado, temperatura }
+deactivate IA
+GW --> Vista : 200 OK
+deactivate GW
+Vista --> Adm : muestra las raciones estimadas
+deactivate Vista
+
+@enduml

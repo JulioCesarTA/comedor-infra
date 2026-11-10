@@ -1,0 +1,368 @@
+====================================================================================================
+BASES DE DATOS PRINCIPALES DEL COMEDOR UAGRM - MODELO CORREGIDO   (ubicacion: desplegado en Kubernetes)
+Solo: comensales_reservas, pagos_tickets, menu_inventario (Mongo), agentes.db (SQLite) y DynamoDB.
+MODELO CORREGIDO: tablas y columnas con los arreglos aplicados (marcados [CAMBIO] y [NUEVO]) para diagramar.
+Lo desplegado hoy TODAVIA tiene la forma anterior (tipos largos, sin esas FK ni las tablas nuevas); esa forma real
+esta en bases_de_datos.txt. Para que las bases coincidan con este modelo hay que hacer migraciones (no hechas).
+Generado el 2026-11-09. Ubicacion segun 'DESPLIEGUE ACTUAL (Kubernetes en 3 nubes)' de CREDENCIALES.local.md
+y los manifiestos comedor-infra/infra/k8s.
+AVISO: no consulte las bases en vivo; al conectarte con TablePlus confirma que coincidan.
+Las contrasenas NO estan aqui: usuario y clave estan en los Secret del namespace 'comedor'.
+====================================================================================================
+
+RESUMEN (namespace 'comedor' en cada cluster)
+  #  BD                  Motor        Nube / cluster                       Servicio o recurso
+  1  comensales_reservas PostgreSQL16 Azure AKS  comedor-aks              svc/postgres-comensales:5432
+  2  pagos_tickets       PostgreSQL16 GCP GKE    comedor-gke (us-central1-a)  svc/postgres-pagos:5432
+  3  menu_inventario     MongoDB 7    AWS EKS    comedor (us-west-2)      svc/mongo:27017  (authSource=admin)
+  4  agentes.db          SQLite       AWS EKS    comedor (us-west-2)      pod de ia-ml-service, archivo /data/agentes.db (PVC ia-datos)
+  5  DynamoDB            DynamoDB     AWS real   us-west-2                https://dynamodb.us-west-2.amazonaws.com
+
+COMO CONECTAR CON TABLEPLUS
+  Las BD 1 a 3 no tienen IP publica (servicios internos, ClusterIP): abre un tunel con kubectl port-forward en una
+  terminal, dejala abierta, y en TablePlus usa Host 127.0.0.1 + el puerto local.
+
+  - comensales_reservas (Azure):
+      kubectl --kubeconfig comedor-infra/respaldo/kube-aks.yaml -n comedor port-forward svc/postgres-comensales 5433:5432
+                                                                           -> TablePlus: PostgreSQL 127.0.0.1:5433
+  - pagos_tickets (GCP):
+      gcloud container clusters get-credentials comedor-gke --zone us-central1-a --project <TU_PROYECTO_GCP>
+      kubectl -n comedor port-forward svc/postgres-pagos 5434:5432         -> TablePlus: PostgreSQL 127.0.0.1:5434
+  - menu_inventario (AWS):
+      aws eks update-kubeconfig --region us-west-2 --name comedor
+      kubectl -n comedor port-forward svc/mongo 27017:27017                -> TablePlus: MongoDB 127.0.0.1:27017, base menu_inventario, Auth DB = admin
+  - Usuario/clave de cada Postgres y de Mongo: kubectl -n comedor get secrets  (y ver el que usa cada manifiesto).
+  - agentes.db (SQLite, AWS): no se abre por tunel; se copia el archivo y se abre en TablePlus como SQLite:
+      aws eks update-kubeconfig --region us-west-2 --name comedor
+      kubectl -n comedor get pods                  (el que empieza con ia-ml-service)
+      kubectl -n comedor cp <pod-ia-ml-service>:/data/agentes.db ./agentes.db
+      (la copia es una foto del momento; los cambios que hagas en ella NO vuelven al pod)
+  - DynamoDB (real, sin tunel): consola de AWS > DynamoDB > Tablas (region us-west-2) o 'aws dynamodb scan --table-name sagas'.
+
+NOTAS DE LECTURA
+  - TIPOS CORTOS: uuid, varchar(255), text, json, int, float, decimal(10,2), bool, date, timestamp, enum.
+    varchar(255) = texto corto (el 255 es solo para el diagrama). json = JSON. enum = valores fijos (ver columna 'valores / nota').
+  - CLAVE / RELACION:  PK y UNIQUE.
+      FK            = clave foranea dentro de la misma base de datos.
+      FK(otra BD)   = apunta a otra base (cada servicio tiene la suya): se dibuja como relacion entre servicios.
+      FK(externa)   = apunta a un usuario de Keycloak (sistema aparte; no es una tabla de estas bases).
+  - [CAMBIO] = cambio respecto a lo desplegado.  [NUEVO] = tabla, coleccion o columna que no existe hoy.
+  - Los nombres de columna de comensales_reservas van en camelCase (TypeORM): en SQL van entre comillas dobles.
+  - [SOLO EN CODIGO] = tablas que el codigo crea pero no estan en el respaldo del 8-nov.
+  - Al final: RELACIONES (para el diagrama) y CAMBIOS APLICADOS.
+
+====================================================================================================
+1. comensales_reservas   (PostgreSQL 16, Azure AKS comedor-aks, svc/postgres-comensales:5432, NestJS/TypeORM)
+====================================================================================================
+  TABLA: estudiantes
+    columna       tipo          nulo  defecto  clave / relacion  valores / nota
+    ------------  ------------  ----  -------  ----------------  --------------
+    id            uuid          NO             PK
+    registroUniv  varchar(255)  NO             UNIQUE
+    nombre        varchar(255)  NO
+    email         varchar(255)  NO
+    telefono      varchar(255)  si
+
+  TABLA: becas
+    columna            tipo       nulo  defecto  clave / relacion    valores / nota
+    -----------------  ---------  ----  -------  ------------------  -----------------------------
+    id                 uuid       NO             PK
+    estudianteId       uuid       NO             FK->estudiantes.id  [CAMBIO] era varchar y sin FK
+    tipo               enum       NO                                 completa | media | parcial
+    cupoRacionesMes    int        NO
+    racionesUsadasMes  int        NO    0
+    vigenteDesde       timestamp  NO
+    vigenteHasta       timestamp  NO
+
+  TABLA: reservas
+    columna       tipo          nulo  defecto  clave / relacion         valores / nota
+    ------------  ------------  ----  -------  -----------------------  ---------------------------------------------------
+    id            uuid          NO             PK
+    estudianteId  uuid          NO             FK->estudiantes.id       [CAMBIO] era varchar y sin FK
+    menuId        varchar(255)  NO             FK(otra BD)->menus._id   Mongo
+    platoId       varchar(255)  NO             FK(otra BD)->platos._id  [CAMBIO] apunta a la nueva coleccion platos (Mongo)
+    fecha         date          NO
+    turno         enum          NO                                      DESAYUNO | ALMUERZO | CENA
+    estado        enum          NO                                      pendiente | confirmada | cancelada | consumida
+    qrCode        text          si
+    createdAt     timestamp     NO    now()
+
+  TABLA: asistencias   [SOLO EN CODIGO]  (asistencia.entity.ts)
+    columna       tipo          nulo  defecto  clave / relacion               valores / nota
+    ------------  ------------  ----  -------  -----------------------------  -----------------------------------------------------------
+    id            uuid          NO             PK
+    usuario       varchar(255)  NO             FK(externa)->Keycloak usuario  [CAMBIO] relacion explicita; los usuarios viven en Keycloak
+    rol           varchar(255)  NO                                            el codigo pone 'personal' si no viene
+    tipo          enum          NO                                            entrada | salida
+    lat           float         NO
+    lon           float         NO
+    distanciaM    int           NO                                            metros
+    dentro        bool          NO    true
+    simulada      bool          NO    false
+    marcadaEn     timestamp     NO
+    registradaEn  timestamp     NO    now()
+
+====================================================================================================
+2. pagos_tickets   (PostgreSQL 16, GCP GKE comedor-gke, svc/postgres-pagos:5432, PHP/PDO)
+====================================================================================================
+  TABLA: proveedores   [TABLA NUEVA]
+    columna  tipo          nulo  defecto  clave / relacion  valores / nota
+    -------  ------------  ----  -------  ----------------  ----------------------------------------------
+    id       uuid          NO             PK
+    nombre   varchar(255)  NO             UNIQUE            [NUEVO] antes el proveedor era un texto suelto
+
+  TABLA: pagos
+    columna        tipo           nulo  defecto  clave / relacion             valores / nota
+    -------------  -------------  ----  -------  ---------------------------  ----------------------------------------------------------------------
+    id             uuid           NO             PK
+    reserva_id     uuid           NO             FK(otra BD)->reservas.id     [CAMBIO] era texto
+    estudiante_id  uuid           NO             FK(otra BD)->estudiantes.id  [CAMBIO] era texto
+    monto          decimal(10,2)  NO
+    metodo         enum           NO                                          qr_bancario | efectivo | beca
+    estado         enum           NO                                          pendiente | cobrado | devuelto | fallido
+    created_at     timestamp      NO                                          [CAMBIO] se quito ticket_id: la relacion queda solo en tickets.pago_id
+
+  TABLA: tickets
+    columna     tipo       nulo  defecto  clave / relacion      valores / nota
+    ----------  ---------  ----  -------  --------------------  -------------------------------------------------------------------
+    id          uuid       NO             PK
+    pago_id     uuid       NO             UNIQUE, FK->pagos.id  [CAMBIO] FK real; un pago tiene como mucho un ticket
+    emitido_en  timestamp  NO                                   [CAMBIO] se quitaron reserva_id y monto: salen de pagos por pago_id
+
+  TABLA: obligaciones_proveedor   [SOLO EN CODIGO]  (PdoObligacionRepository.php)
+    columna       tipo           nulo  defecto  clave / relacion                                           valores / nota
+    ------------  -------------  ----  -------  ---------------------------------------------------------  --------------------------------------
+    id            uuid           NO             PK
+    orden_id      varchar(255)   NO             UNIQUE(orden_id,proveedor_id), FK(otra BD)->propuestas.id  propuesta aprobada de agentes.db
+    proveedor_id  uuid           NO             UNIQUE(orden_id,proveedor_id), FK->proveedores.id          [CAMBIO] reemplaza a proveedor (texto)
+    monto         decimal(10,2)  NO
+    detalle       json           NO                                                                        lineas de la orden
+    estado        enum           NO                                                                        PENDIENTE (hoy es el unico definido)
+    creada_en     timestamp      NO
+
+====================================================================================================
+3. menu_inventario   (MongoDB 7, AWS EKS comedor, svc/mongo:27017 con PVC mongo-datos, Java/Spring Data)
+====================================================================================================
+  Respaldo mongodump del 8-nov: menus = 53 documentos, insumos = 8 documentos (platos no existe hoy).
+  En TablePlus (con el port-forward abierto): host 127.0.0.1, puerto 27017, base menu_inventario, Authentication Database = admin.
+  Tipos: varchar(255), int, float, bool, date, enum, array (lista de subdocumentos).
+
+  COLECCION: platos   [COLECCION NUEVA]
+    campo                    tipo          clave / relacion  valores / nota
+    -----------------------  ------------  ----------------  ------------------------------------------------------
+    _id                      varchar(255)  PK                [NUEVO] hoy el plato es solo un texto suelto (platoId)
+    nombre                   varchar(255)
+    ingredientes             array                           [NUEVO] receta: une el plato con el inventario
+    ingredientes[].insumoId  varchar(255)  FK->insumos._id
+    ingredientes[].cantidad  float                           en la unidad del insumo
+
+  COLECCION: menus   (MenuDocument.java)
+    campo                  tipo          clave / relacion  valores / nota
+    ---------------------  ------------  ----------------  -----------------------------------------------------------------
+    _id                    varchar(255)  PK
+    fecha                  date
+    turno                  enum                            DESAYUNO | ALMUERZO | CENA
+    publicado              bool
+    porciones              array                           [CAMBIO] era un mapa con el platoId como clave y repetido adentro
+    porciones[].platoId    varchar(255)  FK->platos._id
+    porciones[].cupoTotal  int
+    porciones[].apartadas  int                             porciones ya reservadas
+
+  COLECCION: insumos   (InsumoDocument.java)
+    campo                     tipo          clave / relacion  valores / nota
+    ------------------------  ------------  ----------------  ---------------------------------------------------------------
+    _id                       varchar(255)  PK
+    nombre                    varchar(255)
+    unidad                    varchar(255)
+    stockMinimo               float
+    lotes                     array
+    lotes[].loteId            varchar(255)
+    lotes[].cantidad          float                           [CAMBIO] ya no repite la unidad: es la de insumos.unidad
+    lotes[].fechaVencimiento  date                            [CAMBIO] era vencimiento.fecha (subdocumento de una sola fecha)
+
+====================================================================================================
+4. agentes.db   (SQLite, AWS EKS comedor, pod de ia-ml-service, archivo /data/agentes.db en el PVC ia-datos)
+====================================================================================================
+  Esta dentro del pod de ia-ml-service: para abrirlo con TablePlus hay que copiarlo antes (comando en 'COMO CONECTAR').
+  La copia es una foto del momento; los cambios que hagas en ella NO vuelven al pod.
+  Esquema segun ia-ml-service/app/data/almacen.py. Hoy SQLite no declara ninguna FK; aqui van declaradas.
+
+  TABLA: propuestas
+    columna    tipo          nulo  defecto  clave / relacion  valores / nota
+    ---------  ------------  ----  -------  ----------------  ------------------------------------------------------
+    id         varchar(255)  NO             PK
+    tipo       varchar(255)  si
+    clave      varchar(255)  si
+    titulo     varchar(255)  si
+    resumen    text          si
+    payload    json          si
+    estado     varchar(255)  si                               PENDIENTE | INFORMATIVA | los que se ponen al resolver
+    creado     timestamp     si                               [CAMBIO] era float (epoch)
+    resuelto   timestamp     si                               [CAMBIO] era float (epoch)
+    resultado  text          si
+
+  TABLA: outbox
+    columna       tipo          nulo  defecto  clave / relacion   valores / nota
+    ------------  ------------  ----  -------  -----------------  --------------------------
+    id            int           NO             PK, autoincrement
+    texto         text          si
+    propuesta_id  varchar(255)  si             FK->propuestas.id  [CAMBIO] FK declarada
+    con_botones   bool          si    false                       [CAMBIO] era int 0/1
+    creado        timestamp     si                                [CAMBIO] era float (epoch)
+    intentos      int           si    0
+    chat_id       varchar(255)  si             FK->chats.chat_id  [CAMBIO] FK declarada
+
+  TABLA: config
+    columna  tipo          nulo  defecto  clave / relacion  valores / nota
+    -------  ------------  ----  -------  ----------------  --------------
+    k        varchar(255)  NO             PK
+    v        text          si
+
+  TABLA: chats
+    columna      tipo          nulo  defecto  clave / relacion               valores / nota
+    -----------  ------------  ----  -------  -----------------------------  ------------------------------
+    chat_id      varchar(255)  NO             PK
+    estado       varchar(255)  si                                            ejemplo: listo
+    email        varchar(255)  si                                            se busca en Keycloak por email
+    username     varchar(255)  si             FK(externa)->Keycloak usuario  [CAMBIO] relacion explicita
+    nombre       varchar(255)  si
+    roles        json          si    '[]'
+    intentos     int           si    0
+    ctx          json          si    '{}'
+    actualizado  timestamp     si                                            [CAMBIO] era float (epoch)
+
+  TABLA: pagos_tg
+    columna     tipo          nulo  defecto  clave / relacion              valores / nota
+    ----------  ------------  ----  -------  ----------------------------  ---------------------------------------------------------------------------------
+    reserva_id  uuid          NO             PK, FK(otra BD)->reservas.id  [CAMBIO] era texto
+    chat_id     varchar(255)  si             FK->chats.chat_id             [CAMBIO] FK declarada
+    referencia  varchar(255)  si
+    estado      varchar(255)  si                                           esperando_pago | esperando_factura | ...
+    intentos    int           si    0
+    creado      timestamp     si                                           [CAMBIO] era float (epoch); se quitaron plato, fecha y turno: salen de la reserva
+
+  TABLA: ref_porcion
+    columna      tipo          nulo  defecto     clave / relacion                valores / nota
+    -----------  ------------  ----  ----------  ------------------------------  -------------------------------------------
+    id           varchar(255)  NO                PK
+    plato_id     varchar(255)  si                FK(otra BD)->platos._id         [CAMBIO] apunta a la nueva coleccion platos
+    fecha        date          si                                                [CAMBIO] era texto
+    turno        enum          si                                                DESAYUNO | ALMUERZO | CENA
+    creado       timestamp     si                                                [CAMBIO] era float (epoch)
+    f_ref        float         si
+    advertencia  text          si
+    foto_key     varchar(255)  si                                                clave del archivo en S3
+    origen       varchar(255)  si    'servidor'
+    cliente_id   varchar(255)  si                UNIQUE parcial (si no es NULL)
+
+  TABLA: dispositivos
+    columna      tipo          nulo  defecto    clave / relacion               valores / nota
+    -----------  ------------  ----  ---------  -----------------------------  ---------------------------
+    token        varchar(255)  NO               PK
+    usuario      varchar(255)  NO               FK(externa)->Keycloak usuario  [CAMBIO] relacion explicita
+    roles        json          si    '[]'
+    plataforma   varchar(255)  si    'android'
+    actualizado  timestamp     si                                              [CAMBIO] era float (epoch)
+
+  TABLA: bandejas
+    columna     tipo          nulo  defecto     clave / relacion                valores / nota
+    ----------  ------------  ----  ----------  ------------------------------  ----------------------------------------------------------------------------------------
+    id          varchar(255)  NO                PK
+    ref_id      varchar(255)  si                FK->ref_porcion.id              [CAMBIO] FK declarada
+    plato_id    varchar(255)  si                FK(otra BD)->platos._id         [CAMBIO] apunta a platos (se deja: no pude confirmar que siempre iguale a la referencia)
+    fecha       date          si                                                [CAMBIO] era texto
+    turno       enum          si                                                DESAYUNO | ALMUERZO | CENA
+    creado      timestamp     si                                                [CAMBIO] era float (epoch)
+    restante    float         si
+    comido      float         si
+    confianza   float         si
+    foto_key    varchar(255)  si
+    origen      varchar(255)  si    'servidor'
+    cliente_id  varchar(255)  si                UNIQUE parcial (si no es NULL)
+
+====================================================================================================
+5. DynamoDB   (ia-ml-service; DynamoDB REAL de AWS, region us-west-2, endpoint https://dynamodb.us-west-2.amazonaws.com)
+====================================================================================================
+  Dynamo solo declara la clave; el resto de atributos son libres. Facturacion PAY_PER_REQUEST.
+
+  TABLA: idempotency_keys
+    columna         tipo          nulo  defecto  clave / relacion  valores / nota
+    --------------  ------------  ----  -------  ----------------  -------------------------------------------------------------
+    idempotencyKey  varchar(255)  NO             PK (HASH)
+    sagaId          varchar(255)  si             FK->sagas.sagaId  [NUEVO] hoy el sagaId solo va dentro del JSON de la respuesta
+    cachedResponse  json          si                               respuesta guardada para los reintentos
+
+  TABLA: sagas
+    columna  tipo          nulo  defecto  clave / relacion  valores / nota
+    -------  ------------  ----  -------  ----------------  ------------------------------------------------
+    sagaId   varchar(255)  NO             PK (HASH)
+    data     json          si                               step, status, payload, compensations, started_at
+
+====================================================================================================
+RELACIONES (para el diagrama)   formato: tabla_A  cardinalidad  tabla_B   (columna que las une)
+====================================================================================================
+
+  Dentro de comensales_reservas
+    estudiantes 1 ---- N becas                        (becas.estudianteId -> estudiantes.id)
+    estudiantes 1 ---- N reservas                     (reservas.estudianteId -> estudiantes.id)
+
+  Dentro de pagos_tickets
+    pagos 1 ---- 0..1 tickets                         (tickets.pago_id -> pagos.id)
+    proveedores 1 ---- N obligaciones_proveedor       (obligaciones_proveedor.proveedor_id -> proveedores.id)
+
+  Dentro de menu_inventario
+    platos 1 ---- N porciones de menu                 (menus.porciones[].platoId -> platos._id)
+    menus 1 ---- N porciones                          (porciones dentro del documento menu)
+    platos 1 ---- N ingredientes                      (platos.ingredientes[]; cada uno -> insumos._id)
+    insumos 1 ---- N lotes                            (lotes dentro del documento insumo)
+
+  Dentro de agentes.db
+    chats 1 ---- N outbox                             (outbox.chat_id -> chats.chat_id)
+    propuestas 1 ---- N outbox                        (outbox.propuesta_id -> propuestas.id)
+    chats 1 ---- N pagos_tg                           (pagos_tg.chat_id -> chats.chat_id)
+    ref_porcion 1 ---- N bandejas                     (bandejas.ref_id -> ref_porcion.id)
+
+  Dentro de DynamoDB
+    sagas 1 ---- N idempotency_keys                   (idempotency_keys.sagaId -> sagas.sagaId)
+
+  Entre bases de datos (se dibujan como relaciones entre servicios)
+    reservas N ---- 1 menus                           (reservas.menuId -> menus._id)        comensales_reservas -> menu_inventario
+    reservas N ---- 1 platos                          (reservas.platoId -> platos._id)      comensales_reservas -> menu_inventario
+    pagos N ---- 1 reservas                           (pagos.reserva_id -> reservas.id)     pagos_tickets -> comensales_reservas
+    pagos N ---- 1 estudiantes                        (pagos.estudiante_id -> estudiantes.id)
+    obligaciones_proveedor N ---- 1 propuestas        (orden_id -> propuestas.id)           pagos_tickets -> agentes.db
+    pagos_tg 1 ---- 1 reservas                        (pagos_tg.reserva_id -> reservas.id)  agentes.db -> comensales_reservas
+    ref_porcion N ---- 1 platos                       (ref_porcion.plato_id -> platos._id)  agentes.db -> menu_inventario
+    bandejas N ---- 1 platos                          (bandejas.plato_id -> platos._id)     agentes.db -> menu_inventario
+
+  Con Keycloak (sistema externo de usuarios)
+    asistencias.usuario, chats.username y dispositivos.usuario -> usuario de Keycloak
+
+  Sin relaciones: config
+
+====================================================================================================
+CAMBIOS APLICADOS (modelo corregido frente a lo desplegado)
+====================================================================================================
+
+   1. becas.estudianteId y reservas.estudianteId: varchar -> uuid, con FK a estudiantes.id.
+   2. pagos.reserva_id y pagos.estudiante_id: texto -> uuid (siguen siendo relaciones entre bases).
+   3. Se quito pagos.ticket_id; la relacion pago-ticket queda solo en tickets.pago_id (uuid, UNIQUE, FK a pagos.id).
+   4. Se quitaron tickets.reserva_id y tickets.monto (se obtienen por pago_id).
+   5. Nueva coleccion platos (_id, nombre, ingredientes[] con insumoId y cantidad). menus.porciones[].platoId,
+      reservas.platoId, ref_porcion.plato_id y bandejas.plato_id apuntan a ella. Es una PROPUESTA: hoy no hay platos.
+   6. Nueva tabla proveedores; obligaciones_proveedor.proveedor (texto) -> proveedor_id (uuid, FK).
+   7. Los usuarios viven en Keycloak: asistencias.usuario, chats.username y dispositivos.usuario quedan marcados
+      como FK(externa) en vez de inventar una tabla de usuarios.
+   8. menus.porciones: de mapa (platoId repetido) a array de porciones.
+   9. insumos.lotes[]: se quito la unidad repetida y la fecha pasa a lotes[].fechaVencimiento (date).
+  10. agentes.db: FK declaradas en outbox (propuesta_id, chat_id), pagos_tg (chat_id) y bandejas (ref_id).
+  11. agentes.db: fechas float/texto -> timestamp/date; con_botones int -> bool; payload, roles, ctx -> json.
+  12. pagos_tg: se quitaron plato, fecha y turno (se obtienen de la reserva). En bandejas se dejaron plato_id, fecha y
+      turno: no pude confirmar que siempre igualen a los de ref_porcion.
+  13. turno, estado, tipo y metodo pasan a enum con sus valores. 'rol' queda varchar: no conozco todos sus valores.
+  14. idempotency_keys: columna nueva sagaId (FK a sagas.sagaId), para no depender del JSON.
+
+  NO APLICADOS (a proposito)
+   - 'con beca activa solo una racion por dia': es una regla de negocio condicionada a la beca (ReservarRacion.ts);
+     no se expresa con un UNIQUE simple, asi que sigue en el codigo.
+   - Factura: existe Domain/Factura.php pero no se guarda en la BD; no la agregue porque no se que campos lleva.

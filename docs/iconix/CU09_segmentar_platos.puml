@@ -1,0 +1,54 @@
+@startuml Secuencia_Segmentar_Platos
+title Diagrama de Secuencia - CU09: Segmentar platos
+
+hide footbox
+skinparam sequence {
+  ArrowColor #2C3E50
+  LifeLineBorderColor #2C6CA5
+  ParticipantBorderColor #2C6CA5
+  ParticipantBackgroundColor #E8F4FD
+  ActorBorderColor #2C3E50
+}
+
+actor "Administrador" as Adm
+boundary "Vista\n(BI)" as Vista
+participant "Gateway\n(api-gw)" as GW
+control "PrediccionesRouter\n(MSIA)" as IA
+database "BD Agentes\n(SQLite)" as Sql
+participant "MenuController\n(MSMenu)" as Ctrl
+database "BD Menu\n(MongoDB)" as Mongo
+
+== Endpoint: GET /ml/agrupar-platos ==
+
+Adm -> Vista : abrir Agrupación de platos
+activate Vista
+Vista -> GW : GET /ml/agrupar-platos
+activate GW
+GW -> GW : requireAuth(token)
+GW -> IA : agrupar_platos()
+activate IA
+IA -> IA : agrupamiento.calcular()
+IA -> Ctrl : historial(desde, hasta)
+activate Ctrl
+Ctrl -> Mongo : find({fecha: {$gte: desde, $lte: hasta}})
+activate Mongo
+Mongo --> Ctrl : menus
+deactivate Mongo
+Ctrl --> IA : menús con cupo y apartadas
+deactivate Ctrl
+IA -> Sql : restante_medio_por_plato(3)
+activate Sql
+Sql --> IA : desperdicio por plato
+deactivate Sql
+IA -> IA : StandardScaler.fit_transform(X)
+IA -> IA : KMeans(n_clusters=k).fit_predict(Z)
+IA -> IA : silhouette_score(Z, labels)
+IA -> IA : asignar_categoria(cluster) -> Mantener/Ajustar/Retirar
+IA --> GW : { k, silueta, grupos, puntos }
+deactivate IA
+GW --> Vista : 200 OK
+deactivate GW
+Vista --> Adm : muestra los grupos y el mapa de platos
+deactivate Vista
+
+@enduml

@@ -1,0 +1,123 @@
+@startuml Secuencia_Reservar_y_Pagar
+title Diagrama de Secuencia - CU01: Reservar y pagar una ración
+
+hide footbox
+skinparam sequence {
+  ArrowColor #2C3E50
+  LifeLineBorderColor #2C6CA5
+  ParticipantBorderColor #2C6CA5
+  ParticipantBackgroundColor #E8F4FD
+  ActorBorderColor #2C3E50
+}
+
+actor "Estudiante" as Est
+boundary "Vista\n(Portal)" as Vista
+participant "Gateway REST\n(api-gw)" as GW
+control "SagaOrchestrator\n(MSIA)" as Saga
+database "BD DynamoDB\n(sagas)" as Dynamo
+participant "ReservasController\n(MSReservas)" as Res
+database "BD PostgreSQL\n(reservas)" as PgRes
+participant "PorcionesController\n(MSMenu)" as Menu
+database "BD MongoDB\n(menus)" as Mongo
+participant "PagosController\n(MSPagos)" as Pag
+database "BD PostgreSQL\n(pagos)" as PgPag
+participant "Pasarela\n(Stripe)" as Stripe
+
+== Endpoint: POST /sagas/reservar-y-pagar ==
+
+Est -> Vista : reservar(plato, fecha, turno)
+activate Vista
+Vista -> GW : POST /sagas/reservar-y-pagar
+activate GW
+GW -> GW : requireAuth(token)
+GW -> Saga : reservar_y_pagar(dto)
+activate Saga
+
+Saga -> Dynamo : bloquear_idempotencia(key)
+activate Dynamo
+Dynamo --> Saga : clave nueva
+deactivate Dynamo
+
+Saga -> Res : consultar_beca(estudianteId)
+activate Res
+Res -> PgRes : findById(becaActiva)
+activate PgRes
+PgRes --> Res : beca
+deactivate PgRes
+Res --> Saga : { tieneBeca, cubreHoy }
+deactivate Res
+
+Saga -> Dynamo : guardar_saga(sagaId, RUNNING)
+activate Dynamo
+deactivate Dynamo
+
+Saga -> Res : crear_reserva(dto)
+activate Res
+Res -> Res : ReservarRacionUseCase.execute(dto)
+Res -> PgRes : INSERT INTO reservas VALUES(...)
+activate PgRes
+PgRes --> Res : reserva
+deactivate PgRes
+Res --> Saga : { reservaId, estado: 'pendiente' }
+deactivate Res
+
+Saga -> Menu : POST /porciones/apartar
+activate Menu
+Menu -> Menu : ApartarPorcionUseCase.ejecutar(dto)
+Menu -> Mongo : updateOne({_id: menuId}, {$inc: {'porciones.apartadas': 1}})
+activate Mongo
+Mongo --> Menu : menu
+deactivate Mongo
+Menu --> Saga : { ok: true }
+deactivate Menu
+
+alt sin beca que cubra hoy
+  Saga -> Pag : POST /pagos/cobrar (metodo: qr_bancario)
+  activate Pag
+  Pag -> Pag : CobrarRacionService.execute(dto)
+  Pag -> Stripe : cobrarQr(monto, pagoId)
+  activate Stripe
+  Stripe --> Pag : { paymentUrl, referencia }
+  deactivate Stripe
+  Pag -> PgPag : INSERT INTO pagos, INSERT INTO tickets
+  activate PgPag
+  PgPag --> Pag : ok
+  deactivate PgPag
+  Pag --> Saga : { pagoId, ticketId, pasarela }
+  deactivate Pag
+  Saga -> Dynamo : guardar_saga(sagaId, PENDING_PAYMENT)
+  activate Dynamo
+  deactivate Dynamo
+  Saga --> GW : { status: PENDING_PAYMENT, reservaId, qrPago }
+else beca que cubre hoy
+  Saga -> Pag : POST /pagos/cobrar (metodo: beca)
+  activate Pag
+  Pag -> Pag : CobrarRacionService.execute(dto)
+  Pag -> PgPag : INSERT INTO pagos, INSERT INTO tickets
+  activate PgPag
+  PgPag --> Pag : ok
+  deactivate PgPag
+  Pag --> Saga : { pagoId, ticketId }
+  deactivate Pag
+  Saga -> Res : POST /reservas/:id/confirmar
+  activate Res
+  Res -> Res : ConfirmarReservaUseCase.execute(reservaId)
+  Res -> PgRes : UPDATE reservas SET estado='confirmada'
+  activate PgRes
+  PgRes --> Res : reserva
+  deactivate PgRes
+  Res --> Saga : { reservaId, qr }
+  deactivate Res
+  Saga -> Dynamo : guardar_saga(sagaId, COMPLETED)
+  activate Dynamo
+  deactivate Dynamo
+  Saga --> GW : { status: COMPLETED, reservaId, qr }
+end
+
+deactivate Saga
+GW --> Vista : 200 OK
+deactivate GW
+Vista --> Est : muestra reserva y QR (si está confirmada)
+deactivate Vista
+
+@enduml

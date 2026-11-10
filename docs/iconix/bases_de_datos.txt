@@ -1,0 +1,1494 @@
+====================================================================================================
+BASES DE DATOS DEL COMEDOR UAGRM - DESPLEGADO (Kubernetes en 3 nubes)   para conectarte con TablePlus
+Generado el 2026-11-09. Ubicacion de cada BD: segun 'DESPLIEGUE ACTUAL (Kubernetes en 3 nubes)' de
+CREDENCIALES.local.md y los manifiestos comedor-infra/infra/k8s/{eks,azure,gcp}.
+Tablas y columnas: respaldo SQL del 8-nov-2026 + entidades/repositorios del codigo (mismo codigo que corre desplegado).
+AVISO: NO consulte las bases en vivo (no use credenciales de la nube); al conectarte con TablePlus confirma que coincidan.
+Las contrasenas NO estan aqui: usuario y clave de las BD estan en los Secret del namespace 'comedor'.
+====================================================================================================
+
+RESUMEN (todo en el namespace 'comedor' de cada cluster)
+  #  BD                  Motor        Nube / cluster                     Servicio o recurso
+  1  comensales_reservas PostgreSQL16 Azure AKS  comedor-aks            svc/postgres-comensales:5432
+  2  pagos_tickets       PostgreSQL16 GCP GKE    comedor-gke (us-central1-a)  svc/postgres-pagos:5432
+  3  cqrs_read           PostgreSQL16 AWS EKS    comedor (us-west-2)    svc/postgres-cqrs:5432
+  4  menu_inventario     MongoDB 7    AWS EKS    comedor (us-west-2)    svc/mongo:27017  (authSource=admin)
+  5  agentes.db          SQLite       AWS EKS    comedor (us-west-2)    pod de ia-ml-service, archivo /data/agentes.db (PVC ia-datos)
+  6  DynamoDB            DynamoDB     AWS real   us-west-2              https://dynamodb.us-west-2.amazonaws.com
+  7  Keycloak            (interna)    AWS EKS    comedor (us-west-2)    base interna del pod; ver seccion 7
+
+COMO CONECTAR CON TABLEPLUS
+  Ninguna BD tiene IP publica: los servicios son internos del cluster (ClusterIP). Hay que abrir un tunel con
+  kubectl port-forward en una terminal y dejarla abierta; luego en TablePlus: Host 127.0.0.1 + puerto local.
+
+  - cqrs_read (AWS):
+      aws eks update-kubeconfig --region us-west-2 --name comedor
+      kubectl -n comedor port-forward svc/postgres-cqrs 5435:5432          -> TablePlus: PostgreSQL 127.0.0.1:5435
+  - menu_inventario (AWS):
+      kubectl -n comedor port-forward svc/mongo 27017:27017                -> TablePlus: MongoDB 127.0.0.1:27017, base menu_inventario, Auth DB = admin
+  - comensales_reservas (Azure):
+      kubectl --kubeconfig comedor-infra/respaldo/kube-aks.yaml -n comedor port-forward svc/postgres-comensales 5433:5432
+                                                                           -> TablePlus: PostgreSQL 127.0.0.1:5433
+  - pagos_tickets (GCP):
+      gcloud container clusters get-credentials comedor-gke --zone us-central1-a --project <TU_PROYECTO_GCP>
+      kubectl -n comedor port-forward svc/postgres-pagos 5434:5432         -> TablePlus: PostgreSQL 127.0.0.1:5434
+  - Usuario/clave de cada Postgres y de Mongo: kubectl -n comedor get secrets  (y ver el que usa cada manifiesto).
+  - agentes.db: kubectl -n comedor get pods  (el que empieza con ia-ml-service)  y luego
+      kubectl -n comedor cp <pod-ia-ml-service>:/data/agentes.db ./agentes.db   -> abrir ese archivo en TablePlus (SQLite)
+  - DynamoDB (real, sin tunel): consola de AWS > DynamoDB > Tablas (region us-west-2) o 'aws dynamodb scan --table-name sagas'.
+
+NOTAS DE LECTURA
+  - Los nombres de columna de comensales_reservas van en camelCase (TypeORM): en TablePlus/SQL hay que
+    ponerlos entre comillas dobles, por ejemplo "estudianteId".
+  - Las claves foraneas entre servicios NO existen en la BD: reserva.estudianteId, pagos.reserva_id, etc.
+    son referencias logicas (cada servicio tiene su BD). Solo se listan las FK reales que declara el dump.
+  - Marcadas con [SOLO EN CODIGO] estan las tablas que el codigo crea pero que no aparecen en el respaldo.
+
+====================================================================================================
+1. comensales_reservas   (PostgreSQL 16, Azure AKS comedor-aks, svc/postgres-comensales:5432, NestJS/TypeORM)
+====================================================================================================
+  TABLA: becas
+    columna            tipo                         nulo  por defecto  clave
+    -----------------  ---------------------------  ----  -----------  -----
+    id                 uuid                         NO                 PK
+    estudianteId       character varying            NO                 INDEX
+    tipo               character varying            NO
+    cupoRacionesMes    integer                      NO
+    racionesUsadasMes  integer                      NO    0
+    vigenteDesde       timestamp without time zone  NO
+    vigenteHasta       timestamp without time zone  NO
+    PK: (id)
+    INDICE: IDX_e931391bf478fbac4979f5ba88 (estudianteId)
+
+  TABLA: estudiantes
+    columna       tipo               nulo  por defecto  clave
+    ------------  -----------------  ----  -----------  ------
+    id            uuid               NO                 PK
+    registroUniv  character varying  NO                 UNIQUE
+    nombre        character varying  NO
+    email         character varying  NO
+    telefono      character varying  si
+    PK: (id)
+    UNIQUE: (registroUniv)
+
+  TABLA: reservas
+    columna       tipo                         nulo  por defecto  clave
+    ------------  ---------------------------  ----  -----------  -----
+    id            uuid                         NO                 PK
+    estudianteId  character varying            NO                 INDEX
+    menuId        character varying            NO
+    platoId       character varying            NO
+    fecha         date                         NO
+    turno         character varying            NO
+    estado        character varying            NO
+    qrCode        text                         si
+    createdAt     timestamp without time zone  NO    now()
+    PK: (id)
+    INDICE: IDX_0b72b3fcd63fe718ca925536e2 (estudianteId)
+
+  TABLA: asistencias   [SOLO EN CODIGO]  (asistencia.entity.ts; el respaldo del 8-nov no la trae)
+    columna       tipo                         nulo  por defecto                clave
+    ------------  ---------------------------  ----  -------------------------  -----
+    id            uuid                         NO                               PK
+    usuario       character varying            NO                               INDEX
+    rol           character varying            NO
+    tipo          character varying            NO    valores: entrada | salida
+    lat           double precision             NO
+    lon           double precision             NO
+    distanciaM    integer                      NO
+    dentro        boolean                      NO    true
+    simulada      boolean                      NO    false
+    marcadaEn     timestamp without time zone  NO
+    registradaEn  timestamp without time zone  NO    now()
+    PK: (id)
+    INDICE: (nombre generado por TypeORM) (usuario)
+
+====================================================================================================
+2. pagos_tickets   (PostgreSQL 16, GCP GKE comedor-gke, svc/postgres-pagos:5432, PHP/PDO)
+====================================================================================================
+  TABLA: pagos
+    columna        tipo                      nulo  por defecto  clave
+    -------------  ------------------------  ----  -----------  -----
+    id             uuid                      NO                 PK
+    reserva_id     text                      NO                 INDEX
+    estudiante_id  text                      NO
+    monto          numeric(10,2)             NO
+    metodo         text                      NO
+    estado         text                      NO
+    ticket_id      text                      si
+    created_at     timestamp with time zone  NO
+    PK: (id)
+    INDICE: idx_pagos_reserva (reserva_id)
+
+  TABLA: tickets
+    columna     tipo                      nulo  por defecto  clave
+    ----------  ------------------------  ----  -----------  -----
+    id          uuid                      NO                 PK
+    pago_id     uuid                      NO
+    reserva_id  text                      NO
+    monto       numeric(10,2)             NO
+    emitido_en  timestamp with time zone  NO
+    PK: (id)
+
+  TABLA: obligaciones_proveedor   [SOLO EN CODIGO]  (PdoObligacionRepository.php; el respaldo del 8-nov no la trae)
+    columna    tipo                      nulo  por defecto      clave
+    ---------  ------------------------  ----  ---------------  -----------------
+    id         uuid                      NO                     PK
+    orden_id   text                      NO                     UNIQUE(compuesta)
+    proveedor  text                      NO                     UNIQUE(compuesta)
+    monto      numeric(10,2)             NO
+    detalle    text                      NO    JSON como texto
+    estado     text                      NO
+    creada_en  timestamp with time zone  NO
+    PK: (id)
+    UNIQUE: (orden_id, proveedor)
+
+====================================================================================================
+3. cqrs_read   (PostgreSQL 16, AWS EKS comedor, svc/postgres-cqrs:5432, base de LECTURA CQRS de ia-ml-service)
+====================================================================================================
+  Sin tablas: el respaldo cqrs_read.sql esta vacio (solo cabecera de pg_dump).
+  El codigo (ia-ml-service/app/data/cqrs_client.py) espera estas VISTAS, que no existen en el respaldo:
+    raciones_vw      usa: fecha, cantidad
+    desperdicio_vw   usa: plato_id, pct_desperdicio, fecha
+    beca_uso_vw      usa: estudiante_id, ultima_racion
+  Si no existen, el servicio devuelve lista vacia (esta previsto en el codigo).
+
+====================================================================================================
+4. menu_inventario   (MongoDB 7, AWS EKS comedor, svc/mongo:27017 con PVC mongo-datos, Java/Spring Data)
+====================================================================================================
+  Respaldo mongodump del 8-nov: menus = 53 documentos, insumos = 8 documentos.
+  En TablePlus (con el port-forward abierto): host 127.0.0.1, puerto 27017, base menu_inventario, Authentication Database = admin.
+
+  COLECCION: menus   (MenuDocument.java)
+    campo                       tipo                         nota
+    --------------------------  ---------------------------  -------------------------------------------
+    _id                         String                       CLAVE PRIMARIA (id del menu)
+    fecha                       Date (LocalDate)
+    turno                       String (enum Turno)          ejemplo: CENA
+    publicado                   Boolean
+    porciones                   Object (mapa)                clave = id de la porcion
+    porciones.<clave>.platoId   String                       referencia logica al plato
+    porciones.<clave>.cupoTotal Int32
+    porciones.<clave>.apartadas Int32
+
+  COLECCION: insumos   (InsumoDocument.java)
+    campo                       tipo                         nota
+    --------------------------  ---------------------------  -------------------------------------------
+    _id                         String                       CLAVE PRIMARIA (id del insumo)
+    nombre                      String
+    unidad                      String
+    stockMinimo                 Double
+    lotes                       Array de objetos
+    lotes[].loteId              String
+    lotes[].cantidad.valor      Double
+    lotes[].cantidad.unidad     String
+    lotes[].vencimiento.fecha   Date (LocalDate)
+
+====================================================================================================
+5. agentes.db   (SQLite, AWS EKS comedor, pod de ia-ml-service, archivo /data/agentes.db en el PVC ia-datos)
+====================================================================================================
+  Esta dentro del pod de ia-ml: para abrirlo con TablePlus hay que copiarlo antes (comando en 'COMO CONECTAR').
+  La copia es una foto del momento; los cambios que hagas en ella NO vuelven al pod.
+  Esquema segun ia-ml-service/app/data/almacen.py.
+
+  TABLA: propuestas
+    columna    tipo  por defecto  clave / nota
+    ---------  ----  -----------  ------------
+    id         TEXT               PK
+    tipo       TEXT
+    clave      TEXT
+    titulo     TEXT
+    resumen    TEXT
+    payload    TEXT
+    estado     TEXT
+    creado     REAL
+    resuelto   REAL
+    resultado  TEXT
+
+  TABLA: outbox
+    columna       tipo     por defecto  clave / nota
+    ------------  -------  -----------  ----------------------------------
+    id            INTEGER               PK AUTOINCREMENT
+    texto         TEXT
+    propuesta_id  TEXT
+    con_botones   INTEGER  0
+    creado        REAL
+    intentos      INTEGER  0
+    chat_id       TEXT                  (agregada despues con ALTER TABLE)
+
+  TABLA: config
+    columna  tipo  por defecto  clave / nota
+    -------  ----  -----------  ------------
+    k        TEXT               PK
+    v        TEXT
+
+  TABLA: chats
+    columna      tipo     por defecto  clave / nota
+    -----------  -------  -----------  ------------
+    chat_id      TEXT                  PK
+    estado       TEXT
+    email        TEXT
+    username     TEXT
+    nombre       TEXT
+    roles        TEXT     '[]'
+    intentos     INTEGER  0
+    ctx          TEXT     '{}'
+    actualizado  REAL
+
+  TABLA: pagos_tg
+    columna     tipo     por defecto  clave / nota
+    ----------  -------  -----------  ------------
+    reserva_id  TEXT                  PK
+    chat_id     TEXT
+    referencia  TEXT
+    plato       TEXT
+    fecha       TEXT
+    turno       TEXT
+    estado      TEXT
+    intentos    INTEGER  0
+    creado      REAL
+
+  TABLA: ref_porcion
+    columna      tipo  por defecto  clave / nota
+    -----------  ----  -----------  ------------------
+    id           TEXT               PK
+    plato_id     TEXT
+    fecha        TEXT
+    turno        TEXT
+    creado       REAL
+    f_ref        REAL
+    advertencia  TEXT
+    foto_key     TEXT               (agregada despues)
+    origen       TEXT  'servidor'   (agregada despues)
+    cliente_id   TEXT               (agregada despues)
+    INDICE UNICO ux_ref_porcion_cliente (cliente_id) WHERE cliente_id IS NOT NULL
+
+  TABLA: dispositivos
+    columna      tipo  por defecto  clave / nota
+    -----------  ----  -----------  ------------
+    token        TEXT               PK
+    usuario      TEXT               NOT NULL
+    roles        TEXT  '[]'
+    plataforma   TEXT  'android'
+    actualizado  REAL
+
+  TABLA: bandejas
+    columna     tipo  por defecto  clave / nota
+    ----------  ----  -----------  ------------------
+    id          TEXT               PK
+    ref_id      TEXT
+    plato_id    TEXT
+    fecha       TEXT
+    turno       TEXT
+    creado      REAL
+    restante    REAL
+    comido      REAL
+    confianza   REAL
+    foto_key    TEXT               (agregada despues)
+    origen      TEXT  'servidor'   (agregada despues)
+    cliente_id  TEXT               (agregada despues)
+    INDICE UNICO ux_bandejas_cliente (cliente_id) WHERE cliente_id IS NOT NULL
+
+====================================================================================================
+6. DynamoDB   (ia-ml-service; DynamoDB REAL de AWS, region us-west-2, endpoint https://dynamodb.us-west-2.amazonaws.com)
+====================================================================================================
+  Dynamo no tiene esquema fijo: solo se declara la clave. Tablas definidas en infra/terraform/aws/main.tf y
+  creadas por el servicio al iniciar. Facturacion PAY_PER_REQUEST.
+
+  TABLA: idempotency_keys
+    atributo          tipo        clave
+    ----------------  ----------  --------------------------------------------
+    idempotencyKey    S (string)  CLAVE DE PARTICION (HASH) - no hay clave de orden
+    cachedResponse    S (string)  JSON con la respuesta guardada para reintentos
+
+  TABLA: sagas
+    atributo          tipo        clave
+    ----------------  ----------  --------------------------------------------
+    sagaId            S (string)  CLAVE DE PARTICION (HASH) - no hay clave de orden
+    data              S (string)  JSON con el estado de la saga
+
+====================================================================================================
+7. keycloak   (OJO: en el despliegue actual NO es una BD externa)
+====================================================================================================
+  En AWS EKS Keycloak corre con 'kc.sh start-dev --import-realm' y el manifiesto no declara KC_DB*, asi que usa
+  su base interna dentro del pod: no hay nada que abrir con TablePlus.
+  Lo de abajo es el esquema de comedor-infra/respaldo/keycloak.sql (Keycloak 25 sobre PostgreSQL, de un
+  despliegue anterior con RDS/EC2). Sirve solo de referencia; puedes borrar esta seccion.
+
+  TABLA: admin_event_entity
+    columna           tipo                     nulo  por defecto  clave
+    ----------------  -----------------------  ----  -----------  -----
+    id                character varying(36)    NO                 PK
+    admin_event_time  bigint                   si                 INDEX
+    realm_id          character varying(255)   si                 INDEX
+    operation_type    character varying(255)   si
+    auth_realm_id     character varying(255)   si
+    auth_client_id    character varying(255)   si
+    auth_user_id      character varying(255)   si
+    ip_address        character varying(255)   si
+    resource_path     character varying(2550)  si
+    representation    text                     si
+    error             character varying(255)   si
+    resource_type     character varying(64)    si
+    PK: (id)
+    INDICE: idx_admin_event_time (realm_id, admin_event_time)
+
+  TABLA: associated_policy
+    columna               tipo                   nulo  por defecto  clave
+    --------------------  ---------------------  ----  -----------  ---------------------------------------------------
+    policy_id             character varying(36)  NO                 PK(compuesta), FK->resource_server_policy.id
+    associated_policy_id  character varying(36)  NO                 PK(compuesta), FK->resource_server_policy.id, INDEX
+    PK: (policy_id, associated_policy_id)
+    FK: (associated_policy_id) -> resource_server_policy(id)
+    FK: (policy_id) -> resource_server_policy(id)
+    INDICE: idx_assoc_pol_assoc_pol_id (associated_policy_id)
+
+  TABLA: authentication_execution
+    columna             tipo                    nulo  por defecto  clave
+    ------------------  ----------------------  ----  -----------  ----------------------------------------
+    id                  character varying(36)   NO                 PK
+    alias               character varying(255)  si
+    authenticator       character varying(36)   si
+    realm_id            character varying(36)   si                 FK->realm.id, INDEX
+    flow_id             character varying(36)   si                 FK->authentication_flow.id, INDEX, INDEX
+    requirement         integer                 si
+    priority            integer                 si
+    authenticator_flow  boolean                 NO    false
+    auth_flow_id        character varying(36)   si
+    auth_config         character varying(36)   si
+    PK: (id)
+    FK: (flow_id) -> authentication_flow(id)
+    FK: (realm_id) -> realm(id)
+    INDICE: idx_auth_exec_flow (flow_id)
+    INDICE: idx_auth_exec_realm_flow (realm_id, flow_id)
+
+  TABLA: authentication_flow
+    columna      tipo                    nulo  por defecto                      clave
+    -----------  ----------------------  ----  -------------------------------  -------------------
+    id           character varying(36)   NO                                     PK
+    alias        character varying(255)  si
+    description  character varying(255)  si
+    realm_id     character varying(36)   si                                     FK->realm.id, INDEX
+    provider_id  character varying(36)   NO    'basic-flow'::character varying
+    top_level    boolean                 NO    false
+    built_in     boolean                 NO    false
+    PK: (id)
+    FK: (realm_id) -> realm(id)
+    INDICE: idx_auth_flow_realm (realm_id)
+
+  TABLA: authenticator_config
+    columna   tipo                                                        nulo  por defecto  clave
+    --------  ----------------------------------------------------------  ----  -----------  -------------------
+    id        character varying(36) CONSTRAINT authenticator_id_not_null  NO                 PK
+    alias     character varying(255)                                      si
+    realm_id  character varying(36)                                       si                 FK->realm.id, INDEX
+    PK: (id)
+    FK: (realm_id) -> realm(id)
+    INDICE: idx_auth_config_realm (realm_id)
+
+  TABLA: authenticator_config_entry
+    columna           tipo                                                                             nulo  por defecto  clave
+    ----------------  -------------------------------------------------------------------------------  ----  -----------  -------------
+    authenticator_id  character varying(36) CONSTRAINT authenticator_config_authenticator_id_not_null  NO                 PK(compuesta)
+    value             text                                                                             si
+    name              character varying(255) CONSTRAINT authenticator_config_name_not_null             NO                 PK(compuesta)
+    PK: (authenticator_id, name)
+
+  TABLA: broker_link
+    columna              tipo                    nulo  por defecto  clave
+    -------------------  ----------------------  ----  -----------  -------------
+    identity_provider    character varying(255)  NO                 PK(compuesta)
+    storage_provider_id  character varying(255)  si
+    realm_id             character varying(36)   NO
+    broker_user_id       character varying(255)  si
+    broker_username      character varying(255)  si
+    token                text                    si
+    user_id              character varying(255)  NO                 PK(compuesta)
+    PK: (identity_provider, user_id)
+
+  TABLA: client
+    columna                       tipo                    nulo  por defecto  clave
+    ----------------------------  ----------------------  ----  -----------  ------------------------
+    id                            character varying(36)   NO                 PK
+    enabled                       boolean                 NO    false
+    full_scope_allowed            boolean                 NO    false
+    client_id                     character varying(255)  si                 UNIQUE(compuesta), INDEX
+    not_before                    integer                 si
+    public_client                 boolean                 NO    false
+    secret                        character varying(255)  si
+    base_url                      character varying(255)  si
+    bearer_only                   boolean                 NO    false
+    management_url                character varying(255)  si
+    surrogate_auth_required       boolean                 NO    false
+    realm_id                      character varying(36)   si                 UNIQUE(compuesta)
+    protocol                      character varying(255)  si
+    node_rereg_timeout            integer                 si    0
+    frontchannel_logout           boolean                 NO    false
+    consent_required              boolean                 NO    false
+    name                          character varying(255)  si
+    service_accounts_enabled      boolean                 NO    false
+    client_authenticator_type     character varying(255)  si
+    root_url                      character varying(255)  si
+    description                   character varying(255)  si
+    registration_token            character varying(255)  si
+    standard_flow_enabled         boolean                 NO    true
+    implicit_flow_enabled         boolean                 NO    false
+    direct_access_grants_enabled  boolean                 NO    false
+    always_display_in_console     boolean                 NO    false
+    PK: (id)
+    UNIQUE: (realm_id, client_id)
+    INDICE: idx_client_id (client_id)
+
+  TABLA: client_attributes
+    columna    tipo                    nulo  por defecto  clave
+    ---------  ----------------------  ----  -----------  ----------------------------
+    client_id  character varying(36)   NO                 PK(compuesta), FK->client.id
+    name       character varying(255)  NO                 PK(compuesta), INDEX
+    value      text                    si
+    PK: (client_id, name)
+    FK: (client_id) -> client(id)
+    INDICE: idx_client_att_by_name_value (name, substr(value, 1, 255)
+
+  TABLA: client_auth_flow_bindings
+    columna       tipo                    nulo  por defecto  clave
+    ------------  ----------------------  ----  -----------  -------------
+    client_id     character varying(36)   NO                 PK(compuesta)
+    flow_id       character varying(36)   si
+    binding_name  character varying(255)  NO                 PK(compuesta)
+    PK: (client_id, binding_name)
+
+  TABLA: client_initial_access
+    columna          tipo                   nulo  por defecto  clave
+    ---------------  ---------------------  ----  -----------  -------------------
+    id               character varying(36)  NO                 PK
+    realm_id         character varying(36)  NO                 FK->realm.id, INDEX
+    timestamp        integer                si
+    expiration       integer                si
+    count            integer                si
+    remaining_count  integer                si
+    PK: (id)
+    FK: (realm_id) -> realm(id)
+    INDICE: idx_client_init_acc_realm (realm_id)
+
+  TABLA: client_node_registrations
+    columna    tipo                                                                             nulo  por defecto  clave
+    ---------  -------------------------------------------------------------------------------  ----  -----------  ----------------------------
+    client_id  character varying(36) CONSTRAINT app_node_registrations_application_id_not_null  NO                 PK(compuesta), FK->client.id
+    value      integer                                                                          si
+    name       character varying(255) CONSTRAINT app_node_registrations_name_not_null           NO                 PK(compuesta)
+    PK: (client_id, name)
+    FK: (client_id) -> client(id)
+
+  TABLA: client_scope
+    columna      tipo                                                          nulo  por defecto  clave
+    -----------  ------------------------------------------------------------  ----  -----------  ------------------------
+    id           character varying(36) CONSTRAINT client_template_id_not_null  NO                 PK
+    name         character varying(255)                                        si                 UNIQUE(compuesta)
+    realm_id     character varying(36)                                         si                 UNIQUE(compuesta), INDEX
+    description  character varying(255)                                        si
+    protocol     character varying(255)                                        si
+    PK: (id)
+    UNIQUE: (realm_id, name)
+    INDICE: idx_realm_clscope (realm_id)
+
+  TABLA: client_scope_attributes
+    columna   tipo                                                                              nulo  por defecto  clave
+    --------  --------------------------------------------------------------------------------  ----  -----------  -----------------------------------------
+    scope_id  character varying(36) CONSTRAINT client_template_attributes_template_id_not_null  NO                 PK(compuesta), FK->client_scope.id, INDEX
+    value     character varying(2048)                                                           si
+    name      character varying(255) CONSTRAINT client_template_attributes_name_not_null        NO                 PK(compuesta)
+    PK: (scope_id, name)
+    FK: (scope_id) -> client_scope(id)
+    INDICE: idx_clscope_attrs (scope_id)
+
+  TABLA: client_scope_client
+    columna        tipo                    nulo  por defecto  clave
+    -------------  ----------------------  ----  -----------  --------------------
+    client_id      character varying(255)  NO                 PK(compuesta), INDEX
+    scope_id       character varying(255)  NO                 PK(compuesta), INDEX
+    default_scope  boolean                 NO    false
+    PK: (client_id, scope_id)
+    INDICE: idx_cl_clscope (scope_id)
+    INDICE: idx_clscope_cl (client_id)
+
+  TABLA: client_scope_role_mapping
+    columna   tipo                                                                          nulo  por defecto  clave
+    --------  ----------------------------------------------------------------------------  ----  -----------  -----------------------------------------
+    scope_id  character varying(36) CONSTRAINT template_scope_mapping_template_id_not_null  NO                 PK(compuesta), FK->client_scope.id, INDEX
+    role_id   character varying(36) CONSTRAINT template_scope_mapping_role_id_not_null      NO                 PK(compuesta), INDEX
+    PK: (scope_id, role_id)
+    FK: (scope_id) -> client_scope(id)
+    INDICE: idx_clscope_role (scope_id)
+    INDICE: idx_role_clscope (role_id)
+
+  TABLA: client_session
+    columna         tipo                    nulo  por defecto  clave
+    --------------  ----------------------  ----  -----------  --------------------------
+    id              character varying(36)   NO                 PK
+    client_id       character varying(36)   si
+    redirect_uri    character varying(255)  si
+    state           character varying(255)  si
+    timestamp       integer                 si
+    session_id      character varying(36)   si                 FK->user_session.id, INDEX
+    auth_method     character varying(255)  si
+    realm_id        character varying(255)  si
+    auth_user_id    character varying(36)   si
+    current_action  character varying(36)   si
+    PK: (id)
+    FK: (session_id) -> user_session(id)
+    INDICE: idx_client_session_session (session_id)
+
+  TABLA: client_session_auth_status
+    columna         tipo                   nulo  por defecto  clave
+    --------------  ---------------------  ----  -----------  ------------------------------------
+    authenticator   character varying(36)  NO                 PK(compuesta)
+    status          integer                si
+    client_session  character varying(36)  NO                 PK(compuesta), FK->client_session.id
+    PK: (client_session, authenticator)
+    FK: (client_session) -> client_session(id)
+
+  TABLA: client_session_note
+    columna         tipo                    nulo  por defecto  clave
+    --------------  ----------------------  ----  -----------  ------------------------------------
+    name            character varying(255)  NO                 PK(compuesta)
+    value           character varying(255)  si
+    client_session  character varying(36)   NO                 PK(compuesta), FK->client_session.id
+    PK: (client_session, name)
+    FK: (client_session) -> client_session(id)
+
+  TABLA: client_session_prot_mapper
+    columna             tipo                   nulo  por defecto  clave
+    ------------------  ---------------------  ----  -----------  ------------------------------------
+    protocol_mapper_id  character varying(36)  NO                 PK(compuesta)
+    client_session      character varying(36)  NO                 PK(compuesta), FK->client_session.id
+    PK: (client_session, protocol_mapper_id)
+    FK: (client_session) -> client_session(id)
+
+  TABLA: client_session_role
+    columna         tipo                    nulo  por defecto  clave
+    --------------  ----------------------  ----  -----------  ------------------------------------
+    role_id         character varying(255)  NO                 PK(compuesta)
+    client_session  character varying(36)   NO                 PK(compuesta), FK->client_session.id
+    PK: (client_session, role_id)
+    FK: (client_session) -> client_session(id)
+
+  TABLA: client_user_session_note
+    columna         tipo                     nulo  por defecto  clave
+    --------------  -----------------------  ----  -----------  ------------------------------------
+    name            character varying(255)   NO                 PK(compuesta)
+    value           character varying(2048)  si
+    client_session  character varying(36)    NO                 PK(compuesta), FK->client_session.id
+    PK: (client_session, name)
+    FK: (client_session) -> client_session(id)
+
+  TABLA: component
+    columna        tipo                    nulo  por defecto  clave
+    -------------  ----------------------  ----  -----------  -------------------
+    id             character varying(36)   NO                 PK
+    name           character varying(255)  si
+    parent_id      character varying(36)   si
+    provider_id    character varying(36)   si
+    provider_type  character varying(255)  si                 INDEX
+    realm_id       character varying(36)   si                 FK->realm.id, INDEX
+    sub_type       character varying(255)  si
+    PK: (id)
+    FK: (realm_id) -> realm(id)
+    INDICE: idx_component_provider_type (provider_type)
+    INDICE: idx_component_realm (realm_id)
+
+  TABLA: component_config
+    columna       tipo                    nulo  por defecto  clave
+    ------------  ----------------------  ----  -----------  -----------------------
+    id            character varying(36)   NO                 PK
+    component_id  character varying(36)   NO                 FK->component.id, INDEX
+    name          character varying(255)  NO
+    value         text                    si
+    PK: (id)
+    FK: (component_id) -> component(id)
+    INDICE: idx_compo_config_compo (component_id)
+
+  TABLA: composite_role
+    columna     tipo                   nulo  por defecto  clave
+    ----------  ---------------------  ----  -----------  ------------------------------------------
+    composite   character varying(36)  NO                 PK(compuesta), FK->keycloak_role.id, INDEX
+    child_role  character varying(36)  NO                 PK(compuesta), FK->keycloak_role.id, INDEX
+    PK: (composite, child_role)
+    FK: (composite) -> keycloak_role(id)
+    FK: (child_role) -> keycloak_role(id)
+    INDICE: idx_composite (composite)
+    INDICE: idx_composite_child (child_role)
+
+  TABLA: credential
+    columna          tipo                    nulo  por defecto  clave
+    ---------------  ----------------------  ----  -----------  -------------------------
+    id               character varying(36)   NO                 PK
+    salt             bytea                   si
+    type             character varying(255)  si
+    user_id          character varying(36)   si                 FK->user_entity.id, INDEX
+    created_date     bigint                  si
+    user_label       character varying(255)  si
+    secret_data      text                    si
+    credential_data  text                    si
+    priority         integer                 si
+    PK: (id)
+    FK: (user_id) -> user_entity(id)
+    INDICE: idx_user_credential (user_id)
+
+  TABLA: databasechangelog
+    columna        tipo                         nulo  por defecto  clave
+    -------------  ---------------------------  ----  -----------  -----
+    id             character varying(255)       NO
+    author         character varying(255)       NO
+    filename       character varying(255)       NO
+    dateexecuted   timestamp without time zone  NO
+    orderexecuted  integer                      NO
+    exectype       character varying(10)        NO
+    md5sum         character varying(35)        si
+    description    character varying(255)       si
+    comments       character varying(255)       si
+    tag            character varying(255)       si
+    liquibase      character varying(20)        si
+    contexts       character varying(255)       si
+    labels         character varying(255)       si
+    deployment_id  character varying(10)        si
+
+  TABLA: databasechangeloglock
+    columna      tipo                         nulo  por defecto  clave
+    -----------  ---------------------------  ----  -----------  -----
+    id           integer                      NO                 PK
+    locked       boolean                      NO
+    lockgranted  timestamp without time zone  si
+    lockedby     character varying(255)       si
+    PK: (id)
+
+  TABLA: default_client_scope
+    columna        tipo                   nulo  por defecto  clave
+    -------------  ---------------------  ----  -----------  ----------------------------------
+    realm_id       character varying(36)  NO                 PK(compuesta), FK->realm.id, INDEX
+    scope_id       character varying(36)  NO                 PK(compuesta), INDEX
+    default_scope  boolean                NO    false
+    PK: (realm_id, scope_id)
+    FK: (realm_id) -> realm(id)
+    INDICE: idx_defcls_realm (realm_id)
+    INDICE: idx_defcls_scope (scope_id)
+
+  TABLA: event_entity
+    columna                  tipo                     nulo  por defecto  clave
+    -----------------------  -----------------------  ----  -----------  -----
+    id                       character varying(36)    NO                 PK
+    client_id                character varying(255)   si
+    details_json             character varying(2550)  si
+    error                    character varying(255)   si
+    ip_address               character varying(255)   si
+    realm_id                 character varying(255)   si                 INDEX
+    session_id               character varying(255)   si
+    event_time               bigint                   si                 INDEX
+    type                     character varying(255)   si
+    user_id                  character varying(255)   si
+    details_json_long_value  text                     si
+    PK: (id)
+    INDICE: idx_event_time (realm_id, event_time)
+
+  TABLA: fed_user_attribute
+    columna                     tipo                     nulo  por defecto  clave
+    --------------------------  -----------------------  ----  -----------  -------------------
+    id                          character varying(36)    NO                 PK
+    name                        character varying(255)   NO                 INDEX, INDEX, INDEX
+    user_id                     character varying(255)   NO                 INDEX
+    realm_id                    character varying(36)    NO                 INDEX
+    storage_provider_id         character varying(36)    si
+    value                       character varying(2024)  si
+    long_value_hash             bytea                    si                 INDEX
+    long_value_hash_lower_case  bytea                    si                 INDEX
+    long_value                  text                     si
+    PK: (id)
+    INDICE: fed_user_attr_long_values (long_value_hash, name)
+    INDICE: fed_user_attr_long_values_lower_case (long_value_hash_lower_case, name)
+    INDICE: idx_fu_attribute (user_id, realm_id, name)
+
+  TABLA: fed_user_consent
+    columna                  tipo                    nulo  por defecto  clave
+    -----------------------  ----------------------  ----  -----------  -------------------
+    id                       character varying(36)   NO                 PK
+    client_id                character varying(255)  si                 INDEX
+    user_id                  character varying(255)  NO                 INDEX, INDEX, INDEX
+    realm_id                 character varying(36)   NO                 INDEX
+    storage_provider_id      character varying(36)   si
+    created_date             bigint                  si
+    last_updated_date        bigint                  si
+    client_storage_provider  character varying(36)   si                 INDEX
+    external_client_id       character varying(255)  si                 INDEX
+    PK: (id)
+    INDICE: idx_fu_cnsnt_ext (user_id, client_storage_provider, external_client_id)
+    INDICE: idx_fu_consent (user_id, client_id)
+    INDICE: idx_fu_consent_ru (realm_id, user_id)
+
+  TABLA: fed_user_consent_cl_scope
+    columna          tipo                   nulo  por defecto  clave
+    ---------------  ---------------------  ----  -----------  -------------
+    user_consent_id  character varying(36)  NO                 PK(compuesta)
+    scope_id         character varying(36)  NO                 PK(compuesta)
+    PK: (user_consent_id, scope_id)
+
+  TABLA: fed_user_credential
+    columna              tipo                    nulo  por defecto  clave
+    -------------------  ----------------------  ----  -----------  ------------
+    id                   character varying(36)   NO                 PK
+    salt                 bytea                   si
+    type                 character varying(255)  si                 INDEX
+    created_date         bigint                  si
+    user_id              character varying(255)  NO                 INDEX, INDEX
+    realm_id             character varying(36)   NO                 INDEX
+    storage_provider_id  character varying(36)   si
+    user_label           character varying(255)  si
+    secret_data          text                    si
+    credential_data      text                    si
+    priority             integer                 si
+    PK: (id)
+    INDICE: idx_fu_credential (user_id, type)
+    INDICE: idx_fu_credential_ru (realm_id, user_id)
+
+  TABLA: fed_user_group_membership
+    columna              tipo                    nulo  por defecto  clave
+    -------------------  ----------------------  ----  -----------  ---------------------------
+    group_id             character varying(36)   NO                 PK(compuesta), INDEX
+    user_id              character varying(255)  NO                 PK(compuesta), INDEX, INDEX
+    realm_id             character varying(36)   NO                 INDEX
+    storage_provider_id  character varying(36)   si
+    PK: (group_id, user_id)
+    INDICE: idx_fu_group_membership (user_id, group_id)
+    INDICE: idx_fu_group_membership_ru (realm_id, user_id)
+
+  TABLA: fed_user_required_action
+    columna              tipo                    nulo  por defecto             clave
+    -------------------  ----------------------  ----  ----------------------  ---------------------------
+    required_action      character varying(255)  NO    ' '::character varying  PK(compuesta), INDEX
+    user_id              character varying(255)  NO                            PK(compuesta), INDEX, INDEX
+    realm_id             character varying(36)   NO                            INDEX
+    storage_provider_id  character varying(36)   si
+    PK: (required_action, user_id)
+    INDICE: idx_fu_required_action (user_id, required_action)
+    INDICE: idx_fu_required_action_ru (realm_id, user_id)
+
+  TABLA: fed_user_role_mapping
+    columna              tipo                    nulo  por defecto  clave
+    -------------------  ----------------------  ----  -----------  ---------------------------
+    role_id              character varying(36)   NO                 PK(compuesta), INDEX
+    user_id              character varying(255)  NO                 PK(compuesta), INDEX, INDEX
+    realm_id             character varying(36)   NO                 INDEX
+    storage_provider_id  character varying(36)   si
+    PK: (role_id, user_id)
+    INDICE: idx_fu_role_mapping (user_id, role_id)
+    INDICE: idx_fu_role_mapping_ru (realm_id, user_id)
+
+  TABLA: federated_identity
+    columna             tipo                    nulo  por defecto  clave
+    ------------------  ----------------------  ----  -----------  ----------------------------------------
+    identity_provider   character varying(255)  NO                 PK(compuesta)
+    realm_id            character varying(36)   si
+    federated_user_id   character varying(255)  si                 INDEX
+    federated_username  character varying(255)  si
+    token               text                    si
+    user_id             character varying(36)   NO                 PK(compuesta), FK->user_entity.id, INDEX
+    PK: (identity_provider, user_id)
+    FK: (user_id) -> user_entity(id)
+    INDICE: idx_fedidentity_feduser (federated_user_id)
+    INDICE: idx_fedidentity_user (user_id)
+
+  TABLA: federated_user
+    columna              tipo                    nulo  por defecto  clave
+    -------------------  ----------------------  ----  -----------  -----
+    id                   character varying(255)  NO                 PK
+    storage_provider_id  character varying(255)  si
+    realm_id             character varying(36)   NO
+    PK: (id)
+
+  TABLA: group_attribute
+    columna   tipo                    nulo  por defecto                                       clave
+    --------  ----------------------  ----  ------------------------------------------------  ----------------------------
+    id        character varying(36)   NO    'sybase-needs-something-here'::character varying  PK
+    name      character varying(255)  NO                                                      INDEX
+    value     character varying(255)  si
+    group_id  character varying(36)   NO                                                      FK->keycloak_group.id, INDEX
+    PK: (id)
+    FK: (group_id) -> keycloak_group(id)
+    INDICE: idx_group_att_by_name_value (name, ((value)
+    INDICE: idx_group_attr_group (group_id)
+
+  TABLA: group_role_mapping
+    columna   tipo                   nulo  por defecto  clave
+    --------  ---------------------  ----  -----------  -------------------------------------------
+    role_id   character varying(36)  NO                 PK(compuesta)
+    group_id  character varying(36)  NO                 PK(compuesta), FK->keycloak_group.id, INDEX
+    PK: (role_id, group_id)
+    FK: (group_id) -> keycloak_group(id)
+    INDICE: idx_group_role_mapp_group (group_id)
+
+  TABLA: identity_provider
+    columna                     tipo                    nulo  por defecto  clave
+    --------------------------  ----------------------  ----  -----------  --------------------------------------
+    internal_id                 character varying(36)   NO                 PK
+    enabled                     boolean                 NO    false
+    provider_alias              character varying(255)  si                 UNIQUE(compuesta)
+    provider_id                 character varying(255)  si
+    store_token                 boolean                 NO    false
+    authenticate_by_default     boolean                 NO    false
+    realm_id                    character varying(36)   si                 UNIQUE(compuesta), FK->realm.id, INDEX
+    add_token_role              boolean                 NO    true
+    trust_email                 boolean                 NO    false
+    first_broker_login_flow_id  character varying(36)   si
+    post_broker_login_flow_id   character varying(36)   si
+    provider_display_name       character varying(255)  si
+    link_only                   boolean                 NO    false
+    PK: (internal_id)
+    UNIQUE: (provider_alias, realm_id)
+    FK: (realm_id) -> realm(id)
+    INDICE: idx_ident_prov_realm (realm_id)
+
+  TABLA: identity_provider_config
+    columna               tipo                    nulo  por defecto  clave
+    --------------------  ----------------------  ----  -----------  ------------------------------------------------
+    identity_provider_id  character varying(36)   NO                 PK(compuesta), FK->identity_provider.internal_id
+    value                 text                    si
+    name                  character varying(255)  NO                 PK(compuesta)
+    PK: (identity_provider_id, name)
+    FK: (identity_provider_id) -> identity_provider(internal_id)
+
+  TABLA: identity_provider_mapper
+    columna          tipo                    nulo  por defecto  clave
+    ---------------  ----------------------  ----  -----------  -------------------
+    id               character varying(36)   NO                 PK
+    name             character varying(255)  NO
+    idp_alias        character varying(255)  NO
+    idp_mapper_name  character varying(255)  NO
+    realm_id         character varying(36)   NO                 FK->realm.id, INDEX
+    PK: (id)
+    FK: (realm_id) -> realm(id)
+    INDICE: idx_id_prov_mapp_realm (realm_id)
+
+  TABLA: idp_mapper_config
+    columna        tipo                    nulo  por defecto  clave
+    -------------  ----------------------  ----  -----------  ----------------------------------------------
+    idp_mapper_id  character varying(36)   NO                 PK(compuesta), FK->identity_provider_mapper.id
+    value          text                    si
+    name           character varying(255)  NO                 PK(compuesta)
+    PK: (idp_mapper_id, name)
+    FK: (idp_mapper_id) -> identity_provider_mapper(id)
+
+  TABLA: keycloak_group
+    columna       tipo                    nulo  por defecto  clave
+    ------------  ----------------------  ----  -----------  -----------------
+    id            character varying(36)   NO                 PK
+    name          character varying(255)  si                 UNIQUE(compuesta)
+    parent_group  character varying(36)   NO                 UNIQUE(compuesta)
+    realm_id      character varying(36)   si                 UNIQUE(compuesta)
+    PK: (id)
+    UNIQUE: (realm_id, parent_group, name)
+
+  TABLA: keycloak_role
+    columna                  tipo                    nulo  por defecto                                               clave
+    -----------------------  ----------------------  ----  --------------------------------------------------------  -------------------
+    id                       character varying(36)   NO                                                              PK
+    client_realm_constraint  character varying(255)  si                                                              UNIQUE(compuesta)
+    client_role              boolean                 NO    false CONSTRAINT keycloak_role_application_role_not_null
+    description              character varying(255)  si
+    name                     character varying(255)  si                                                              UNIQUE(compuesta)
+    realm_id                 character varying(255)  si
+    client                   character varying(36)   si                                                              INDEX
+    realm                    character varying(36)   si                                                              FK->realm.id, INDEX
+    PK: (id)
+    UNIQUE: (name, client_realm_constraint)
+    FK: (realm) -> realm(id)
+    INDICE: idx_keycloak_role_client (client)
+    INDICE: idx_keycloak_role_realm (realm)
+
+  TABLA: migration_model
+    columna      tipo                   nulo  por defecto  clave
+    -----------  ---------------------  ----  -----------  -----
+    id           character varying(36)  NO                 PK
+    version      character varying(36)  si
+    update_time  bigint                 NO    0            INDEX
+    PK: (id)
+    INDICE: idx_update_time (update_time)
+
+  TABLA: offline_client_session
+    columna                  tipo                    nulo  por defecto                 clave
+    -----------------------  ----------------------  ----  --------------------------  --------------------
+    user_session_id          character varying(36)   NO                                PK(compuesta), INDEX
+    client_id                character varying(255)  NO                                PK(compuesta)
+    offline_flag             character varying(4)    NO                                PK(compuesta)
+    timestamp                integer                 si
+    data                     text                    si
+    client_storage_provider  character varying(36)   NO    'local'::character varying  PK(compuesta)
+    external_client_id       character varying(255)  NO    'local'::character varying  PK(compuesta)
+    version                  integer                 si    0
+    PK: (user_session_id, client_id, client_storage_provider, external_client_id, offline_flag)
+    INDICE: idx_us_sess_id_on_cl_sess (user_session_id)
+
+  TABLA: offline_user_session
+    columna               tipo                     nulo  por defecto  clave
+    --------------------  -----------------------  ----  -----------  ---------------------------
+    user_session_id       character varying(36)    NO                 PK(compuesta)
+    user_id               character varying(255)   NO                 INDEX
+    realm_id              character varying(36)    NO                 INDEX, INDEX, INDEX
+    created_on            integer                  NO
+    offline_flag          character varying(4)     NO                 PK(compuesta), INDEX, INDEX
+    data                  text                     si
+    last_session_refresh  integer                  NO    0            INDEX
+    broker_session_id     character varying(1024)  si                 INDEX
+    version               integer                  si    0
+    PK: (user_session_id, offline_flag)
+    INDICE: idx_offline_uss_by_broker_session_id (broker_session_id, realm_id)
+    INDICE: idx_offline_uss_by_last_session_refresh (realm_id, offline_flag, last_session_refresh)
+    INDICE: idx_offline_uss_by_user (user_id, realm_id, offline_flag)
+
+  TABLA: org
+    columna      tipo                     nulo  por defecto  clave
+    -----------  -----------------------  ----  -----------  -----------------
+    id           character varying(255)   NO                 PK
+    enabled      boolean                  NO
+    realm_id     character varying(255)   NO                 UNIQUE(compuesta)
+    group_id     character varying(255)   NO                 UNIQUE
+    name         character varying(255)   NO                 UNIQUE(compuesta)
+    description  character varying(4000)  si
+    PK: (id)
+    UNIQUE: (group_id)
+    UNIQUE: (realm_id, name)
+
+  TABLA: org_domain
+    columna   tipo                    nulo  por defecto  clave
+    --------  ----------------------  ----  -----------  -------------
+    id        character varying(36)   NO                 PK(compuesta)
+    name      character varying(255)  NO                 PK(compuesta)
+    verified  boolean                 NO
+    org_id    character varying(255)  NO
+    PK: (id, name)
+
+  TABLA: policy_config
+    columna    tipo                    nulo  por defecto  clave
+    ---------  ----------------------  ----  -----------  --------------------------------------------
+    policy_id  character varying(36)   NO                 PK(compuesta), FK->resource_server_policy.id
+    name       character varying(255)  NO                 PK(compuesta)
+    value      text                    si
+    PK: (policy_id, name)
+    FK: (policy_id) -> resource_server_policy(id)
+
+  TABLA: protocol_mapper
+    columna               tipo                    nulo  por defecto  clave
+    --------------------  ----------------------  ----  -----------  --------------------------
+    id                    character varying(36)   NO                 PK
+    name                  character varying(255)  NO
+    protocol              character varying(255)  NO
+    protocol_mapper_name  character varying(255)  NO
+    client_id             character varying(36)   si                 FK->client.id, INDEX
+    client_scope_id       character varying(36)   si                 FK->client_scope.id, INDEX
+    PK: (id)
+    FK: (client_scope_id) -> client_scope(id)
+    FK: (client_id) -> client(id)
+    INDICE: idx_clscope_protmap (client_scope_id)
+    INDICE: idx_protocol_mapper_client (client_id)
+
+  TABLA: protocol_mapper_config
+    columna             tipo                    nulo  por defecto  clave
+    ------------------  ----------------------  ----  -----------  -------------------------------------
+    protocol_mapper_id  character varying(36)   NO                 PK(compuesta), FK->protocol_mapper.id
+    value               text                    si
+    name                character varying(255)  NO                 PK(compuesta)
+    PK: (protocol_mapper_id, name)
+    FK: (protocol_mapper_id) -> protocol_mapper(id)
+
+  TABLA: realm
+    columna                       tipo                     nulo  por defecto                    clave
+    ----------------------------  -----------------------  ----  -----------------------------  ------
+    id                            character varying(36)    NO                                   PK
+    access_code_lifespan          integer                  si
+    user_action_lifespan          integer                  si
+    access_token_lifespan         integer                  si
+    account_theme                 character varying(255)   si
+    admin_theme                   character varying(255)   si
+    email_theme                   character varying(255)   si
+    enabled                       boolean                  NO    false
+    events_enabled                boolean                  NO    false
+    events_expiration             bigint                   si
+    login_theme                   character varying(255)   si
+    name                          character varying(255)   si                                   UNIQUE
+    not_before                    integer                  si
+    password_policy               character varying(2550)  si
+    registration_allowed          boolean                  NO    false
+    remember_me                   boolean                  NO    false
+    reset_password_allowed        boolean                  NO    false
+    social                        boolean                  NO    false
+    ssl_required                  character varying(255)   si
+    sso_idle_timeout              integer                  si
+    sso_max_lifespan              integer                  si
+    update_profile_on_soc_login   boolean                  NO    false
+    verify_email                  boolean                  NO    false
+    master_admin_client           character varying(36)    si                                   INDEX
+    login_lifespan                integer                  si
+    internationalization_enabled  boolean                  NO    false
+    default_locale                character varying(255)   si
+    reg_email_as_username         boolean                  NO    false
+    admin_events_enabled          boolean                  NO    false
+    admin_events_details_enabled  boolean                  NO    false
+    edit_username_allowed         boolean                  NO    false
+    otp_policy_counter            integer                  si    0
+    otp_policy_window             integer                  si    1
+    otp_policy_period             integer                  si    30
+    otp_policy_digits             integer                  si    6
+    otp_policy_alg                character varying(36)    si    'HmacSHA1'::character varying
+    otp_policy_type               character varying(36)    si    'totp'::character varying
+    browser_flow                  character varying(36)    si
+    registration_flow             character varying(36)    si
+    direct_grant_flow             character varying(36)    si
+    reset_credentials_flow        character varying(36)    si
+    client_auth_flow              character varying(36)    si
+    offline_session_idle_timeout  integer                  si    0
+    revoke_refresh_token          boolean                  NO    false
+    access_token_life_implicit    integer                  si    0
+    login_with_email_allowed      boolean                  NO    true
+    duplicate_emails_allowed      boolean                  NO    false
+    docker_auth_flow              character varying(36)    si
+    refresh_token_max_reuse       integer                  si    0
+    allow_user_managed_access     boolean                  NO    false
+    sso_max_lifespan_remember_me  integer                  NO    0
+    sso_idle_timeout_remember_me  integer                  NO    0
+    default_role                  character varying(255)   si
+    PK: (id)
+    UNIQUE: (name)
+    INDICE: idx_realm_master_adm_cli (master_admin_client)
+
+  TABLA: realm_attribute
+    columna   tipo                    nulo  por defecto  clave
+    --------  ----------------------  ----  -----------  ----------------------------------
+    name      character varying(255)  NO                 PK(compuesta)
+    realm_id  character varying(36)   NO                 PK(compuesta), FK->realm.id, INDEX
+    value     text                    si
+    PK: (name, realm_id)
+    FK: (realm_id) -> realm(id)
+    INDICE: idx_realm_attr_realm (realm_id)
+
+  TABLA: realm_default_groups
+    columna   tipo                   nulo  por defecto  clave
+    --------  ---------------------  ----  -----------  ----------------------------------
+    realm_id  character varying(36)  NO                 PK(compuesta), FK->realm.id, INDEX
+    group_id  character varying(36)  NO                 PK(compuesta), UNIQUE
+    PK: (realm_id, group_id)
+    UNIQUE: (group_id)
+    FK: (realm_id) -> realm(id)
+    INDICE: idx_realm_def_grp_realm (realm_id)
+
+  TABLA: realm_enabled_event_types
+    columna   tipo                    nulo  por defecto  clave
+    --------  ----------------------  ----  -----------  ----------------------------------
+    realm_id  character varying(36)   NO                 PK(compuesta), FK->realm.id, INDEX
+    value     character varying(255)  NO                 PK(compuesta)
+    PK: (realm_id, value)
+    FK: (realm_id) -> realm(id)
+    INDICE: idx_realm_evt_types_realm (realm_id)
+
+  TABLA: realm_events_listeners
+    columna   tipo                    nulo  por defecto  clave
+    --------  ----------------------  ----  -----------  ----------------------------------
+    realm_id  character varying(36)   NO                 PK(compuesta), FK->realm.id, INDEX
+    value     character varying(255)  NO                 PK(compuesta)
+    PK: (realm_id, value)
+    FK: (realm_id) -> realm(id)
+    INDICE: idx_realm_evt_list_realm (realm_id)
+
+  TABLA: realm_localizations
+    columna   tipo                    nulo  por defecto  clave
+    --------  ----------------------  ----  -----------  -------------
+    realm_id  character varying(255)  NO                 PK(compuesta)
+    locale    character varying(255)  NO                 PK(compuesta)
+    texts     text                    NO
+    PK: (realm_id, locale)
+
+  TABLA: realm_required_credential
+    columna     tipo                    nulo  por defecto  clave
+    ----------  ----------------------  ----  -----------  ---------------------------
+    type        character varying(255)  NO                 PK(compuesta)
+    form_label  character varying(255)  si
+    input       boolean                 NO    false
+    secret      boolean                 NO    false
+    realm_id    character varying(36)   NO                 PK(compuesta), FK->realm.id
+    PK: (realm_id, type)
+    FK: (realm_id) -> realm(id)
+
+  TABLA: realm_smtp_config
+    columna   tipo                    nulo  por defecto  clave
+    --------  ----------------------  ----  -----------  ---------------------------
+    realm_id  character varying(36)   NO                 PK(compuesta), FK->realm.id
+    value     character varying(255)  si
+    name      character varying(255)  NO                 PK(compuesta)
+    PK: (realm_id, name)
+    FK: (realm_id) -> realm(id)
+
+  TABLA: realm_supported_locales
+    columna   tipo                    nulo  por defecto  clave
+    --------  ----------------------  ----  -----------  ----------------------------------
+    realm_id  character varying(36)   NO                 PK(compuesta), FK->realm.id, INDEX
+    value     character varying(255)  NO                 PK(compuesta)
+    PK: (realm_id, value)
+    FK: (realm_id) -> realm(id)
+    INDICE: idx_realm_supp_local_realm (realm_id)
+
+  TABLA: redirect_uris
+    columna    tipo                    nulo  por defecto  clave
+    ---------  ----------------------  ----  -----------  -----------------------------------
+    client_id  character varying(36)   NO                 PK(compuesta), FK->client.id, INDEX
+    value      character varying(255)  NO                 PK(compuesta)
+    PK: (client_id, value)
+    FK: (client_id) -> client(id)
+    INDICE: idx_redir_uri_client (client_id)
+
+  TABLA: required_action_config
+    columna             tipo                    nulo  por defecto  clave
+    ------------------  ----------------------  ----  -----------  -------------
+    required_action_id  character varying(36)   NO                 PK(compuesta)
+    value               text                    si
+    name                character varying(255)  NO                 PK(compuesta)
+    PK: (required_action_id, name)
+
+  TABLA: required_action_provider
+    columna         tipo                    nulo  por defecto  clave
+    --------------  ----------------------  ----  -----------  -------------------
+    id              character varying(36)   NO                 PK
+    alias           character varying(255)  si
+    name            character varying(255)  si
+    realm_id        character varying(36)   si                 FK->realm.id, INDEX
+    enabled         boolean                 NO    false
+    default_action  boolean                 NO    false
+    provider_id     character varying(255)  si
+    priority        integer                 si
+    PK: (id)
+    FK: (realm_id) -> realm(id)
+    INDICE: idx_req_act_prov_realm (realm_id)
+
+  TABLA: resource_attribute
+    columna      tipo                    nulo  por defecto                                       clave
+    -----------  ----------------------  ----  ------------------------------------------------  -------------------------------
+    id           character varying(36)   NO    'sybase-needs-something-here'::character varying  PK
+    name         character varying(255)  NO
+    value        character varying(255)  si
+    resource_id  character varying(36)   NO                                                      FK->resource_server_resource.id
+    PK: (id)
+    FK: (resource_id) -> resource_server_resource(id)
+
+  TABLA: resource_policy
+    columna      tipo                   nulo  por defecto  clave
+    -----------  ---------------------  ----  -----------  ---------------------------------------------------
+    resource_id  character varying(36)  NO                 PK(compuesta), FK->resource_server_resource.id
+    policy_id    character varying(36)  NO                 PK(compuesta), FK->resource_server_policy.id, INDEX
+    PK: (resource_id, policy_id)
+    FK: (resource_id) -> resource_server_resource(id)
+    FK: (policy_id) -> resource_server_policy(id)
+    INDICE: idx_res_policy_policy (policy_id)
+
+  TABLA: resource_scope
+    columna      tipo                   nulo  por defecto  clave
+    -----------  ---------------------  ----  -----------  --------------------------------------------------
+    resource_id  character varying(36)  NO                 PK(compuesta), FK->resource_server_resource.id
+    scope_id     character varying(36)  NO                 PK(compuesta), FK->resource_server_scope.id, INDEX
+    PK: (resource_id, scope_id)
+    FK: (resource_id) -> resource_server_resource(id)
+    FK: (scope_id) -> resource_server_scope(id)
+    INDICE: idx_res_scope_scope (scope_id)
+
+  TABLA: resource_server
+    columna               tipo                                                                 nulo  por defecto  clave
+    --------------------  -------------------------------------------------------------------  ----  -----------  -----
+    id                    character varying(36) CONSTRAINT resource_server_client_id_not_null  NO                 PK
+    allow_rs_remote_mgmt  boolean                                                              NO    false
+    policy_enforce_mode   smallint                                                             NO
+    decision_strategy     smallint                                                             NO    1
+    PK: (id)
+
+  TABLA: resource_server_perm_ticket
+    columna             tipo                    nulo  por defecto  clave
+    ------------------  ----------------------  ----  -----------  --------------------------------------------------
+    id                  character varying(36)   NO                 PK
+    owner               character varying(255)  NO                 UNIQUE(compuesta), INDEX
+    requester           character varying(255)  NO                 UNIQUE(compuesta), INDEX
+    created_timestamp   bigint                  NO
+    granted_timestamp   bigint                  si
+    resource_id         character varying(36)   NO                 UNIQUE(compuesta), FK->resource_server_resource.id
+    scope_id            character varying(36)   si                 UNIQUE(compuesta), FK->resource_server_scope.id
+    resource_server_id  character varying(36)   NO                 UNIQUE(compuesta), FK->resource_server.id
+    policy_id           character varying(36)   si                 FK->resource_server_policy.id
+    PK: (id)
+    UNIQUE: (owner, requester, resource_server_id, resource_id, scope_id)
+    FK: (resource_server_id) -> resource_server(id)
+    FK: (resource_id) -> resource_server_resource(id)
+    FK: (scope_id) -> resource_server_scope(id)
+    FK: (policy_id) -> resource_server_policy(id)
+    INDICE: idx_perm_ticket_owner (owner)
+    INDICE: idx_perm_ticket_requester (requester)
+
+  TABLA: resource_server_policy
+    columna             tipo                                                                                        nulo  por defecto  clave
+    ------------------  ------------------------------------------------------------------------------------------  ----  -----------  ------------------------------------------------
+    id                  character varying(36)                                                                       NO                 PK
+    name                character varying(255)                                                                      NO                 UNIQUE(compuesta)
+    description         character varying(255)                                                                      si
+    type                character varying(255)                                                                      NO
+    decision_strategy   smallint                                                                                    si
+    logic               smallint                                                                                    si
+    resource_server_id  character varying(36) CONSTRAINT resource_server_policy_resource_server_client_id_not_null  NO                 UNIQUE(compuesta), FK->resource_server.id, INDEX
+    owner               character varying(255)                                                                      si
+    PK: (id)
+    UNIQUE: (name, resource_server_id)
+    FK: (resource_server_id) -> resource_server(id)
+    INDICE: idx_res_serv_pol_res_serv (resource_server_id)
+
+  TABLA: resource_server_resource
+    columna               tipo                                                                                          nulo  por defecto  clave
+    --------------------  --------------------------------------------------------------------------------------------  ----  -----------  ------------------------------------------------
+    id                    character varying(36)                                                                         NO                 PK
+    name                  character varying(255)                                                                        NO                 UNIQUE(compuesta)
+    type                  character varying(255)                                                                        si
+    icon_uri              character varying(255)                                                                        si
+    owner                 character varying(255)                                                                        NO                 UNIQUE(compuesta)
+    resource_server_id    character varying(36) CONSTRAINT resource_server_resource_resource_server_client_id_not_null  NO                 UNIQUE(compuesta), FK->resource_server.id, INDEX
+    owner_managed_access  boolean                                                                                       NO    false
+    display_name          character varying(255)                                                                        si
+    PK: (id)
+    UNIQUE: (name, owner, resource_server_id)
+    FK: (resource_server_id) -> resource_server(id)
+    INDICE: idx_res_srv_res_res_srv (resource_server_id)
+
+  TABLA: resource_server_scope
+    columna             tipo                                                                                       nulo  por defecto  clave
+    ------------------  -----------------------------------------------------------------------------------------  ----  -----------  ------------------------------------------------
+    id                  character varying(36)                                                                      NO                 PK
+    name                character varying(255)                                                                     NO                 UNIQUE(compuesta)
+    icon_uri            character varying(255)                                                                     si
+    resource_server_id  character varying(36) CONSTRAINT resource_server_scope_resource_server_client_id_not_null  NO                 UNIQUE(compuesta), FK->resource_server.id, INDEX
+    display_name        character varying(255)                                                                     si
+    PK: (id)
+    UNIQUE: (name, resource_server_id)
+    FK: (resource_server_id) -> resource_server(id)
+    INDICE: idx_res_srv_scope_res_srv (resource_server_id)
+
+  TABLA: resource_uris
+    columna      tipo                    nulo  por defecto  clave
+    -----------  ----------------------  ----  -----------  ----------------------------------------------
+    resource_id  character varying(36)   NO                 PK(compuesta), FK->resource_server_resource.id
+    value        character varying(255)  NO                 PK(compuesta)
+    PK: (resource_id, value)
+    FK: (resource_id) -> resource_server_resource(id)
+
+  TABLA: role_attribute
+    columna  tipo                    nulo  por defecto  clave
+    -------  ----------------------  ----  -----------  ---------------------------
+    id       character varying(36)   NO                 PK
+    role_id  character varying(36)   NO                 FK->keycloak_role.id, INDEX
+    name     character varying(255)  NO
+    value    character varying(255)  si
+    PK: (id)
+    FK: (role_id) -> keycloak_role(id)
+    INDICE: idx_role_attribute (role_id)
+
+  TABLA: scope_mapping
+    columna    tipo                   nulo  por defecto  clave
+    ---------  ---------------------  ----  -----------  ----------------------------
+    client_id  character varying(36)  NO                 PK(compuesta), FK->client.id
+    role_id    character varying(36)  NO                 PK(compuesta), INDEX
+    PK: (client_id, role_id)
+    FK: (client_id) -> client(id)
+    INDICE: idx_scope_mapping_role (role_id)
+
+  TABLA: scope_policy
+    columna    tipo                   nulo  por defecto  clave
+    ---------  ---------------------  ----  -----------  ---------------------------------------------------
+    scope_id   character varying(36)  NO                 PK(compuesta), FK->resource_server_scope.id
+    policy_id  character varying(36)  NO                 PK(compuesta), FK->resource_server_policy.id, INDEX
+    PK: (scope_id, policy_id)
+    FK: (policy_id) -> resource_server_policy(id)
+    FK: (scope_id) -> resource_server_scope(id)
+    INDICE: idx_scope_policy_policy (policy_id)
+
+  TABLA: user_attribute
+    columna                     tipo                    nulo  por defecto                                       clave
+    --------------------------  ----------------------  ----  ------------------------------------------------  -------------------------
+    name                        character varying(255)  NO                                                      INDEX, INDEX, INDEX
+    value                       character varying(255)  si                                                      INDEX
+    user_id                     character varying(36)   NO                                                      FK->user_entity.id, INDEX
+    id                          character varying(36)   NO    'sybase-needs-something-here'::character varying  PK
+    long_value_hash             bytea                   si                                                      INDEX
+    long_value_hash_lower_case  bytea                   si                                                      INDEX
+    long_value                  text                    si
+    PK: (id)
+    FK: (user_id) -> user_entity(id)
+    INDICE: idx_user_attribute (user_id)
+    INDICE: idx_user_attribute_name (name, value)
+    INDICE: user_attr_long_values (long_value_hash, name)
+    INDICE: user_attr_long_values_lower_case (long_value_hash_lower_case, name)
+
+  TABLA: user_consent
+    columna                  tipo                    nulo  por defecto  clave
+    -----------------------  ----------------------  ----  -----------  ---------------------------------------------------------------
+    id                       character varying(36)   NO                 PK
+    client_id                character varying(255)  si                 UNIQUE(compuesta)
+    user_id                  character varying(36)   NO                 UNIQUE(compuesta), UNIQUE(compuesta), FK->user_entity.id, INDEX
+    created_date             bigint                  si
+    last_updated_date        bigint                  si
+    client_storage_provider  character varying(36)   si                 UNIQUE(compuesta)
+    external_client_id       character varying(255)  si                 UNIQUE(compuesta)
+    PK: (id)
+    UNIQUE: (client_storage_provider, external_client_id, user_id)
+    UNIQUE: (client_id, user_id)
+    FK: (user_id) -> user_entity(id)
+    INDICE: idx_user_consent (user_id)
+
+  TABLA: user_consent_client_scope
+    columna          tipo                   nulo  por defecto  clave
+    ---------------  ---------------------  ----  -----------  -----------------------------------------
+    user_consent_id  character varying(36)  NO                 PK(compuesta), FK->user_consent.id, INDEX
+    scope_id         character varying(36)  NO                 PK(compuesta), INDEX
+    PK: (user_consent_id, scope_id)
+    FK: (user_consent_id) -> user_consent(id)
+    INDICE: idx_usconsent_clscope (user_consent_id)
+    INDICE: idx_usconsent_scope_id (scope_id)
+
+  TABLA: user_entity
+    columna                      tipo                    nulo  por defecto  clave
+    ---------------------------  ----------------------  ----  -----------  -------------------------------------------
+    id                           character varying(36)   NO                 PK
+    email                        character varying(255)  si                 INDEX
+    email_constraint             character varying(255)  si                 UNIQUE(compuesta)
+    email_verified               boolean                 NO    false
+    enabled                      boolean                 NO    false
+    federation_link              character varying(255)  si
+    first_name                   character varying(255)  si
+    last_name                    character varying(255)  si
+    realm_id                     character varying(255)  si                 UNIQUE(compuesta), UNIQUE(compuesta), INDEX
+    username                     character varying(255)  si                 UNIQUE(compuesta)
+    created_timestamp            bigint                  si
+    service_account_client_link  character varying(255)  si                 INDEX
+    not_before                   integer                 NO    0
+    PK: (id)
+    UNIQUE: (realm_id, email_constraint)
+    UNIQUE: (realm_id, username)
+    INDICE: idx_user_email (email)
+    INDICE: idx_user_service_account (realm_id, service_account_client_link)
+
+  TABLA: user_federation_config
+    columna                      tipo                    nulo  por defecto  clave
+    ---------------------------  ----------------------  ----  -----------  ----------------------------------------------
+    user_federation_provider_id  character varying(36)   NO                 PK(compuesta), FK->user_federation_provider.id
+    value                        character varying(255)  si
+    name                         character varying(255)  NO                 PK(compuesta)
+    PK: (user_federation_provider_id, name)
+    FK: (user_federation_provider_id) -> user_federation_provider(id)
+
+  TABLA: user_federation_mapper
+    columna                 tipo                    nulo  por defecto  clave
+    ----------------------  ----------------------  ----  -----------  --------------------------------------
+    id                      character varying(36)   NO                 PK
+    name                    character varying(255)  NO
+    federation_provider_id  character varying(36)   NO                 FK->user_federation_provider.id, INDEX
+    federation_mapper_type  character varying(255)  NO
+    realm_id                character varying(36)   NO                 FK->realm.id, INDEX
+    PK: (id)
+    FK: (federation_provider_id) -> user_federation_provider(id)
+    FK: (realm_id) -> realm(id)
+    INDICE: idx_usr_fed_map_fed_prv (federation_provider_id)
+    INDICE: idx_usr_fed_map_realm (realm_id)
+
+  TABLA: user_federation_mapper_config
+    columna                    tipo                                                                                              nulo  por defecto  clave
+    -------------------------  ------------------------------------------------------------------------------------------------  ----  -----------  --------------------------------------------
+    user_federation_mapper_id  character varying(36) CONSTRAINT user_federation_mapper_confi_user_federation_mapper_id_not_null  NO                 PK(compuesta), FK->user_federation_mapper.id
+    value                      character varying(255)                                                                            si
+    name                       character varying(255)                                                                            NO                 PK(compuesta)
+    PK: (user_federation_mapper_id, name)
+    FK: (user_federation_mapper_id) -> user_federation_mapper(id)
+
+  TABLA: user_federation_provider
+    columna              tipo                    nulo  por defecto  clave
+    -------------------  ----------------------  ----  -----------  -------------------
+    id                   character varying(36)   NO                 PK
+    changed_sync_period  integer                 si
+    display_name         character varying(255)  si
+    full_sync_period     integer                 si
+    last_sync            integer                 si
+    priority             integer                 si
+    provider_name        character varying(255)  si
+    realm_id             character varying(36)   si                 FK->realm.id, INDEX
+    PK: (id)
+    FK: (realm_id) -> realm(id)
+    INDICE: idx_usr_fed_prv_realm (realm_id)
+
+  TABLA: user_group_membership
+    columna   tipo                   nulo  por defecto  clave
+    --------  ---------------------  ----  -----------  ----------------------------------------
+    group_id  character varying(36)  NO                 PK(compuesta)
+    user_id   character varying(36)  NO                 PK(compuesta), FK->user_entity.id, INDEX
+    PK: (group_id, user_id)
+    FK: (user_id) -> user_entity(id)
+    INDICE: idx_user_group_mapping (user_id)
+
+  TABLA: user_required_action
+    columna          tipo                    nulo  por defecto             clave
+    ---------------  ----------------------  ----  ----------------------  ----------------------------------------
+    user_id          character varying(36)   NO                            PK(compuesta), FK->user_entity.id, INDEX
+    required_action  character varying(255)  NO    ' '::character varying  PK(compuesta)
+    PK: (required_action, user_id)
+    FK: (user_id) -> user_entity(id)
+    INDICE: idx_user_reqactions (user_id)
+
+  TABLA: user_role_mapping
+    columna  tipo                    nulo  por defecto  clave
+    -------  ----------------------  ----  -----------  ----------------------------------------
+    role_id  character varying(255)  NO                 PK(compuesta)
+    user_id  character varying(36)   NO                 PK(compuesta), FK->user_entity.id, INDEX
+    PK: (role_id, user_id)
+    FK: (user_id) -> user_entity(id)
+    INDICE: idx_user_role_mapping (user_id)
+
+  TABLA: user_session
+    columna               tipo                    nulo  por defecto  clave
+    --------------------  ----------------------  ----  -----------  -----
+    id                    character varying(36)   NO                 PK
+    auth_method           character varying(255)  si
+    ip_address            character varying(255)  si
+    last_session_refresh  integer                 si
+    login_username        character varying(255)  si
+    realm_id              character varying(255)  si
+    remember_me           boolean                 NO    false
+    started               integer                 si
+    user_id               character varying(255)  si
+    user_session_state    integer                 si
+    broker_session_id     character varying(255)  si
+    broker_user_id        character varying(255)  si
+    PK: (id)
+
+  TABLA: user_session_note
+    columna       tipo                     nulo  por defecto  clave
+    ------------  -----------------------  ----  -----------  ----------------------------------
+    user_session  character varying(36)    NO                 PK(compuesta), FK->user_session.id
+    name          character varying(255)   NO                 PK(compuesta)
+    value         character varying(2048)  si
+    PK: (user_session, name)
+    FK: (user_session) -> user_session(id)
+
+  TABLA: username_login_failure
+    columna                  tipo                    nulo  por defecto  clave
+    -----------------------  ----------------------  ----  -----------  -------------
+    realm_id                 character varying(36)   NO                 PK(compuesta)
+    username                 character varying(255)  NO                 PK(compuesta)
+    failed_login_not_before  integer                 si
+    last_failure             bigint                  si
+    last_ip_failure          character varying(255)  si
+    num_failures             integer                 si
+    PK: (realm_id, username)
+
+  TABLA: web_origins
+    columna    tipo                    nulo  por defecto  clave
+    ---------  ----------------------  ----  -----------  -----------------------------------
+    client_id  character varying(36)   NO                 PK(compuesta), FK->client.id, INDEX
+    value      character varying(255)  NO                 PK(compuesta)
+    PK: (client_id, value)
+    FK: (client_id) -> client(id)
+    INDICE: idx_web_orig_client (client_id)
+

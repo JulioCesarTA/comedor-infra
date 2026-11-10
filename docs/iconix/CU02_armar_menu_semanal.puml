@@ -1,0 +1,122 @@
+@startuml Secuencia_Armar_Menu_Semanal
+title Diagrama de Secuencia - CU02: Armar el menú semanal
+
+hide footbox
+skinparam sequence {
+  ArrowColor #2C3E50
+  LifeLineBorderColor #2C6CA5
+  ParticipantBorderColor #2C6CA5
+  ParticipantBackgroundColor #E8F4FD
+  ActorBorderColor #2C3E50
+}
+
+actor "Administrador" as Adm
+boundary "Vista\n(Backoffice)" as Vista
+participant "Gateway\n(api-gw)" as GW
+control "AgentesRouter\n(MSIA)" as IA
+database "BD Agentes\n(SQLite)" as Sql
+participant "Automatización\n(n8n)" as N8n
+participant "Notificaciones\n(FCM)" as FCM
+participant "McpController\n(MSMenu)" as Mcp
+database "BD Menu\n(MongoDB)" as Mongo
+
+== Endpoint 1: POST /agentes/planificador-menu ==
+
+Adm -> Vista : correr("planificador-menu")
+activate Vista
+Vista -> GW : POST /agentes/planificador-menu
+activate GW
+GW -> GW : requireAuth(token)
+GW -> IA : planif(mision)
+activate IA
+IA -> IA : PlanificadorMenuAgent.run(objetivo)
+
+IA -> Mcp : ver_stock_bajo()
+activate Mcp
+Mcp -> Mongo : find({stockBajo: true})
+activate Mongo
+Mongo --> Mcp : insumos
+deactivate Mongo
+Mcp --> IA : insumos con stock bajo
+deactivate Mcp
+
+IA -> Mcp : lotes_por_vencer(dias=10)
+activate Mcp
+Mcp -> Mongo : find({vencimiento: {$lte: fecha}})
+activate Mongo
+Mongo --> Mcp : insumos
+deactivate Mongo
+Mcp --> IA : lotes por vencer
+deactivate Mcp
+
+IA -> IA : predecir_demanda(plato, fecha)
+IA -> IA : proponer_menu(propuesta)
+IA -> Sql : crear_si_no_hay_vigente(propuesta)
+activate Sql
+Sql --> IA : propuesta PENDIENTE
+deactivate Sql
+IA -> N8n : POST /webhook/notificar(push, "Menú propuesto")
+activate N8n
+N8n -> FCM : messages:send(token, titulo, cuerpo)
+activate FCM
+FCM --> N8n : enviado
+deactivate FCM
+N8n --> IA : { ok: true }
+deactivate N8n
+IA --> GW : { propuesta, propuestaMenu }
+deactivate IA
+GW --> Vista : 200 OK
+deactivate GW
+Vista --> Adm : muestra la propuesta de menú
+deactivate Vista
+
+== Endpoint 2: POST /agentes/propuestas/{id}/aprobar ==
+
+Adm -> Vista : resolver(propuesta, aprobar = true)
+activate Vista
+Vista -> GW : POST /agentes/propuestas/{id}/aprobar
+activate GW
+GW -> GW : requireAuth(token)
+GW -> IA : aprobar(id)
+activate IA
+IA -> IA : propuestas.resolver(id, aprobar)
+IA -> Sql : tomar_pendiente(id, EJECUTANDO)
+activate Sql
+Sql --> IA : ok
+deactivate Sql
+
+loop por cada turno
+  IA -> Mcp : consultar_menu(turno)
+  activate Mcp
+  Mcp -> Mongo : find({fecha: {$gte: inicio}, turno})
+  activate Mongo
+  Mongo --> Mcp : menus
+  deactivate Mongo
+  Mcp --> IA : menús existentes
+  deactivate Mcp
+end
+
+loop por cada día y turno sin menú publicado
+  IA -> Mcp : publicar_menu(fecha, turno, platos)
+  activate Mcp
+  Mcp -> Mcp : ArmarMenuSemanalUseCase.ejecutar(entrada)
+  Mcp -> Mongo : insertOne(menu)
+  activate Mongo
+  Mongo --> Mcp : menu
+  deactivate Mongo
+  Mcp --> IA : menuDto
+  deactivate Mcp
+end
+
+IA -> Sql : cerrar(id, EJECUTADA)
+activate Sql
+Sql --> IA : ok
+deactivate Sql
+IA --> GW : { estado: EJECUTADA, resultado }
+deactivate IA
+GW --> Vista : 200 OK
+deactivate GW
+Vista --> Adm : muestra el menú publicado
+deactivate Vista
+
+@enduml

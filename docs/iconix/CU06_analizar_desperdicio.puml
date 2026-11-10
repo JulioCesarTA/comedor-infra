@@ -1,0 +1,109 @@
+@startuml Secuencia_Analizar_Desperdicio
+title Diagrama de Secuencia - CU06: Analizar el desperdicio con foto de bandeja
+
+hide footbox
+skinparam sequence {
+  ArrowColor #2C3E50
+  LifeLineBorderColor #2C6CA5
+  ParticipantBorderColor #2C6CA5
+  ParticipantBackgroundColor #E8F4FD
+  ActorBorderColor #2C3E50
+}
+
+actor "Personal de Caja" as Caja
+boundary "Vista\n(App Móvil)" as Vista
+participant "IA Local\n(TFLite)" as TFL
+database "BD Local\n(Archivos)" as Local
+participant "Gateway\n(api-gw)" as GW
+control "PrediccionesRouter\n(MSIA)" as IA
+participant "Bucket\n(S3)" as S3
+database "BD Agentes\n(SQLite)" as Sql
+
+== Análisis en el teléfono (funciona sin internet) ==
+
+Caja -> Vista : _procesar("bandeja", foto)
+activate Vista
+Vista -> Vista : prepararFoto(bytes)
+Vista -> TFL : caracteristicas(rgba)
+activate TFL
+TFL --> Vista : mapa_segmentacion
+deactivate TFL
+Vista -> Local : guardarFoto(jpeg, id)
+activate Local
+Local --> Vista : foto
+deactivate Local
+Vista -> Vista : analizarBandeja(rgba, mapa, referencia)
+Vista -> Local : guardarEstado(bandeja_pendiente)
+activate Local
+deactivate Local
+Vista --> Caja : muestra % restante y % comido
+deactivate Vista
+
+== Endpoint 1 (con internet): GET /ml/vision/paquete-movil ==
+
+Vista -> Vista : sincronizar(estado, api)
+activate Vista
+Vista -> GW : GET /ml/vision/paquete-movil
+activate GW
+GW -> GW : requireAuth(token)
+GW -> IA : vision_paquete_movil(limite)
+activate IA
+IA -> Sql : referencias(limite)
+activate Sql
+Sql --> IA : referencias
+deactivate Sql
+IA --> GW : { referencias }
+deactivate IA
+GW --> Vista : 200 OK
+deactivate GW
+
+== Endpoint 2 (con internet): POST /ml/vision/subida ==
+
+Vista -> GW : POST /ml/vision/subida
+activate GW
+GW -> GW : requireAuth(token)
+GW -> IA : vision_subida(tipo, clienteId, fecha)
+activate IA
+IA -> IA : vision.url_subida(tipo, clienteId, fecha)
+IA --> GW : { clave, url, encabezados }
+deactivate IA
+GW --> Vista : 200 OK
+deactivate GW
+Vista -> S3 : PUT foto (URL temporal)
+activate S3
+S3 --> Vista : 200 OK
+deactivate S3
+
+== Endpoint 3 (con internet): POST /ml/vision/bandeja-movil ==
+
+Vista -> GW : POST /ml/vision/bandeja-movil
+activate GW
+GW -> GW : requireAuth(token)
+GW -> IA : vision_bandeja_movil(dto)
+activate IA
+IA -> IA : vision.registrar_bandeja_movil(dto)
+IA -> Sql : por_cliente("bandejas", clienteId)
+activate Sql
+Sql --> IA : sin registro previo
+deactivate Sql
+IA -> Sql : referencia(refId)
+activate Sql
+Sql --> IA : referencia
+deactivate Sql
+IA -> S3 : HEAD /{bucket}/{fotoKey}
+activate S3
+S3 --> IA : true
+deactivate S3
+IA -> Sql : guardar_bandeja(bid, refId, plato, restante, comido, confianza)
+activate Sql
+deactivate Sql
+IA --> GW : { id, repetido: false }
+deactivate IA
+GW --> Vista : 200 OK
+deactivate GW
+Vista -> Local : guardarEstado(bandeja enviada)
+activate Local
+deactivate Local
+deactivate Vista
+
+@enduml

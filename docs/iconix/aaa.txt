@@ -1,0 +1,408 @@
+=== Diagrama: CU11 - Comunicacion Validar QR de ingreso | Type=Collaboration | DiagramID=27
+    StyleEx=ExcludeRTF=0;DocAll=0;HideQuals=0;AttPkg=1;ShowTests=0;ShowMaint=0;SuppressFOC=1;MatrixActive=0;SwimlanesActive=1;KanbanActive=0;MatrixLineWidth=1;MatrixLineClr=0;MatrixLocked=0;TConnectorNotation=UML 2.1;TExplicitNavigability=0;AdvancedElementProps=1;AdvancedFeatureProps=1;AdvancedConnectorProps=1;m_bElementClassifier=1;SPT=1;MDGDgm=;STBLDgm=;ShowNotes=0;VisibleAttributeDetail=0;ShowOpRetType=1;SuppressBrackets=0;SuppConnectorLabels=0;PrintPageHeadFoot=0;ShowAsList=0;SuppressedCompartments=;Theme=:119;SaveTag=7D9F4915;
+    ExtendedStyle=HideRel=0;ShowTags=0;ShowReqs=0;ShowCons=0;OpParams=1;ShowSN=0;ScalePI=0;PPgs.cx=0;PPgs.cy=0;PSize=1;ShowIcons=1;SuppCN=0;HideProps=0;HideParents=0;UseAlias=0;HideAtts=0;HideOps=0;HideStereo=0;HideEStereo=0;ShowRec=1;ShowRes=0;ShowShape=1;FormName=;
+--- Elemento: Personal de Caja | Type=Actor | Stereotype= | ElementID=212
+  ConnectorID=718 | Type=Collaboration | Subtype= | Name=startCamera() | ClientID=212 | SupplierID=213 | DiagramID=0 | SequenceNo=1 | Direction=Source -> Destination | Stereotype=
+      StyleEx=
+      StateFlags=IsReturn=false; | EventFlags=
+      TransitionEvent=Synchronous | TransitionGuard= | TransitionAction=Call
+      MiscData(0)=Synchronous
+      MiscData(1)=
+      MiscData(2)=Call
+      MiscData(3)=0.1
+      MiscData(4)=SX=15;SY=35;EX=45;EY=35;EDGE=2;
+  ConnectorID=734 | Type=Collaboration | Subtype= | Name=17: muestra 'Ingreso autorizado' | ClientID=213 | SupplierID=212 | DiagramID=0 | SequenceNo=16 | Direction=Source -> Destination | Stereotype=
+      StyleEx=
+      StateFlags= | EventFlags=
+      TransitionEvent= | TransitionGuard= | TransitionAction=
+      MiscData(0)=
+      MiscData(1)=
+      MiscData(2)=
+      MiscData(3)=0.16
+      MiscData(4)=SX=110;SY=115;EX=80;EY=115;
+  ConnectorID=739 | Type=Association | Subtype= | Name= | ClientID=212 | SupplierID=213 | DiagramID=0 | SequenceNo=0 | Direction=Unspecified | Stereotype=
+      StyleEx=
+      StateFlags= | EventFlags=
+      TransitionEvent= | TransitionGuard= | TransitionAction=
+      MiscData(0)=
+      MiscData(1)=
+      MiscData(2)=
+      MiscData(3)=
+      MiscData(4)=SX=0;SY=0;EX=0;EY=0;
+  ConnectorID=740 | Type=Collaboration | Subtype= | Name=sdasd | ClientID=212 | SupplierID=213 | DiagramID=27 | SequenceNo=18 | Direction=Source -> Destination | Stereotype=
+      StyleEx=
+      StateFlags=IsReturn=false; | EventFlags=
+      TransitionEvent=Synchronous | TransitionGuard= | TransitionAction=Call
+      MiscData(0)=Synchronous
+      MiscData(1)=
+      MiscData(2)=Call
+      MiscData(3)=0.18
+      MiscData(4)=SX=0;SY=31;EX=30;EY=31;
+--- Elemento: Vista (Backoffice) | Type=Object | Stereotype=boundary | ElementID=213
+  ConnectorID=719 | Type=Collaboration | Subtype= | Name=2: html5QrCode.start() lee el QR | ClientID=213 | SupplierID=213 | DiagramID=0 | SequenceNo=2 | Direction=Source -> Destination | Stereotype=
+      StyleEx=
+      StateFlags= | EventFlags=
+      TransitionEvent= | TransitionGuard= | TransitionAction=
+      MiscData(0)=
+      MiscData(1)=
+      MiscData(2)=
+      MiscData(3)=0.2
+      MiscData(4)=SX=76;SY=-169;EX=106;EY=-169;
+  ConnectorID=720 | Type=Collaboration | Subtype= | Name=3: validar() | ClientID=213 | SupplierID=213 | DiagramID=0 | SequenceNo=3 | Direction=Source -> Destination | Stereotype=
+      StyleEx=
+      StateFlags= | EventFlags=
+      TransitionEvent= | TransitionGuard= | TransitionAction=
+      MiscData(0)=
+      MiscData(1)=
+      MiscData(2)=
+      MiscData(3)=0.3
+      MiscData(4)=SX=-24;SY=347;EX=6;EY=347;
+  ConnectorID=721 | Type=Collaboration | Subtype= | Name=4: POST /graphql | ClientID=213 | SupplierID=214 | DiagramID=0 | SequenceNo=4 | Direction=Source -> Destination | Stereotype=
+      StyleEx=
+      StateFlags= | EventFlags=
+      TransitionEvent= | TransitionGuard= | TransitionAction=
+      MiscData(0)=
+      MiscData(1)=
+      MiscData(2)=
+      MiscData(3)=0.4
+      MiscData(4)=SX=80;SY=-47;EX=50;EY=-47;EDGE=2;
+  ConnectorID=733 | Type=Collaboration | Subtype= | Name=16: return(200 OK) | ClientID=214 | SupplierID=213 | DiagramID=0 | SequenceNo=17 | Direction=Source -> Destination | Stereotype=
+      StyleEx=
+      StateFlags= | EventFlags=
+      TransitionEvent= | TransitionGuard= | TransitionAction=
+      MiscData(0)=
+      MiscData(1)=
+      MiscData(2)=
+      MiscData(3)=0.17
+      MiscData(4)=SX=32;SY=37;EX=62;EY=37;EDGE=4;
+--- Elemento: Gateway (api-gw) | Type=Object | Stereotype=control | ElementID=214
+  ConnectorID=722 | Type=Collaboration | Subtype= | Name=5: requireAuth(token) | ClientID=214 | SupplierID=214 | DiagramID=0 | SequenceNo=5 | Direction=Source -> Destination | Stereotype=
+      StyleEx=
+      StateFlags= | EventFlags=
+      TransitionEvent= | TransitionGuard= | TransitionAction=
+      MiscData(0)=
+      MiscData(1)=
+      MiscData(2)=
+      MiscData(3)=0.5
+      MiscData(4)=EDGE=2;
+  ConnectorID=723 | Type=Collaboration | Subtype= | Name=6: mutation validarQr(qr) | ClientID=214 | SupplierID=215 | DiagramID=0 | SequenceNo=6 | Direction=Source -> Destination | Stereotype=
+      StyleEx=
+      StateFlags= | EventFlags=
+      TransitionEvent= | TransitionGuard= | TransitionAction=
+      MiscData(0)=
+      MiscData(1)=
+      MiscData(2)=
+      MiscData(3)=0.6
+      MiscData(4)=SX=125;SY=21;EX=155;EY=21;EDGE=3;
+  ConnectorID=732 | Type=Collaboration | Subtype= | Name=15: return({ data: { validarQr } }) | ClientID=215 | SupplierID=214 | DiagramID=0 | SequenceNo=15 | Direction=Source -> Destination | Stereotype=
+      StyleEx=
+      StateFlags= | EventFlags=
+      TransitionEvent= | TransitionGuard= | TransitionAction=
+      MiscData(0)=
+      MiscData(1)=
+      MiscData(2)=
+      MiscData(3)=0.15
+      MiscData(4)=EDGE=1;
+--- Elemento: Gateway (graphql-gw) | Type=Object | Stereotype=control | ElementID=215
+  ConnectorID=724 | Type=Collaboration | Subtype= | Name=7: validarQr(qr) | ClientID=215 | SupplierID=216 | DiagramID=0 | SequenceNo=7 | Direction=Source -> Destination | Stereotype=
+      StyleEx=
+      StateFlags= | EventFlags=
+      TransitionEvent= | TransitionGuard= | TransitionAction=
+      MiscData(0)=
+      MiscData(1)=
+      MiscData(2)=
+      MiscData(3)=0.7
+      MiscData(4)=EDGE=2;
+  ConnectorID=731 | Type=Collaboration | Subtype= | Name=14: return({ ok: true, reservaId }) | ClientID=216 | SupplierID=215 | DiagramID=0 | SequenceNo=14 | Direction=Source -> Destination | Stereotype=
+      StyleEx=
+      StateFlags= | EventFlags=
+      TransitionEvent= | TransitionGuard= | TransitionAction=
+      MiscData(0)=
+      MiscData(1)=
+      MiscData(2)=
+      MiscData(3)=0.14
+      MiscData(4)=EDGE=4;
+--- Elemento: IngresoResolver (MSReservas) | Type=Object | Stereotype=control | ElementID=216
+  ConnectorID=725 | Type=Collaboration | Subtype= | Name=8: ValidarIngresoUseCase.execute(qr) | ClientID=216 | SupplierID=216 | DiagramID=0 | SequenceNo=8 | Direction=Source -> Destination | Stereotype=
+      StyleEx=
+      StateFlags= | EventFlags=
+      TransitionEvent= | TransitionGuard= | TransitionAction=
+      MiscData(0)=
+      MiscData(1)=
+      MiscData(2)=
+      MiscData(3)=0.8
+      MiscData(4)=EDGE=2;
+  ConnectorID=726 | Type=Collaboration | Subtype= | Name=9: findOne({qrCode: qr}) | ClientID=216 | SupplierID=217 | DiagramID=0 | SequenceNo=9 | Direction=Source -> Destination | Stereotype=
+      StyleEx=
+      StateFlags= | EventFlags=
+      TransitionEvent= | TransitionGuard= | TransitionAction=
+      MiscData(0)=
+      MiscData(1)=
+      MiscData(2)=
+      MiscData(3)=0.9
+      MiscData(4)=EDGE=2;
+  ConnectorID=727 | Type=Collaboration | Subtype= | Name=10: return(reserva) | ClientID=217 | SupplierID=216 | DiagramID=0 | SequenceNo=10 | Direction=Source -> Destination | Stereotype=
+      StyleEx=
+      StateFlags= | EventFlags=
+      TransitionEvent= | TransitionGuard= | TransitionAction=
+      MiscData(0)=
+      MiscData(1)=
+      MiscData(2)=
+      MiscData(3)=0.10
+      MiscData(4)=EDGE=4;
+  ConnectorID=728 | Type=Collaboration | Subtype= | Name=11: reserva.marcarConsumida() | ClientID=216 | SupplierID=216 | DiagramID=0 | SequenceNo=11 | Direction=Source -> Destination | Stereotype=
+      StyleEx=
+      StateFlags= | EventFlags=
+      TransitionEvent= | TransitionGuard= | TransitionAction=
+      MiscData(0)=
+      MiscData(1)=
+      MiscData(2)=
+      MiscData(3)=0.11
+      MiscData(4)=EDGE=2;
+  ConnectorID=729 | Type=Collaboration | Subtype= | Name=12: UPDATE reservas SET estado='consumida' | ClientID=216 | SupplierID=217 | DiagramID=0 | SequenceNo=12 | Direction=Source -> Destination | Stereotype=
+      StyleEx=
+      StateFlags= | EventFlags=
+      TransitionEvent= | TransitionGuard= | TransitionAction=
+      MiscData(0)=
+      MiscData(1)=
+      MiscData(2)=
+      MiscData(3)=0.12
+      MiscData(4)=EDGE=2;
+  ConnectorID=730 | Type=Collaboration | Subtype= | Name=13: return(reserva) | ClientID=217 | SupplierID=216 | DiagramID=0 | SequenceNo=13 | Direction=Source -> Destination | Stereotype=
+      StyleEx=
+      StateFlags= | EventFlags=
+      TransitionEvent= | TransitionGuard= | TransitionAction=
+      MiscData(0)=
+      MiscData(1)=
+      MiscData(2)=
+      MiscData(3)=0.13
+      MiscData(4)=EDGE=4;
+--- Elemento: BD Reservas (PostgreSQL) | Type=Object | Stereotype=entity | ElementID=217
+=== DiagramLinks
+  ConnectorID=718 | Style=Mode=1;EOID=D08D49C3;SOID=58F1674B;Color=-1;LWidth=0; | Geometry=SX=-11;SY=106;EX=19;EY=106;EDGE=2;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;
+  ConnectorID=719 | Style=Mode=1;EOID=D08D49C3;SOID=D08D49C3;Color=-1;LWidth=0; | Geometry=SX=76;SY=-169;EX=106;EY=-169;EDGE=2;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;
+  ConnectorID=720 | Style=Mode=1;EOID=D08D49C3;SOID=D08D49C3;Color=-1;LWidth=0; | Geometry=SX=-24;SY=347;EX=6;EY=347;EDGE=2;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;
+  ConnectorID=721 | Style=Mode=1;EOID=DD8EBCCC;SOID=D08D49C3;Color=-1;LWidth=0; | Geometry=SX=80;SY=-47;EX=50;EY=-47;EDGE=2;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;
+  ConnectorID=722 | Style=Mode=1;EOID=DD8EBCCC;SOID=DD8EBCCC;Color=-1;LWidth=0; | Geometry=EDGE=2;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;
+  ConnectorID=723 | Style=Mode=1;EOID=EB18B0D2;SOID=DD8EBCCC;Color=-1;LWidth=0; | Geometry=SX=125;SY=21;EX=155;EY=21;EDGE=3;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;
+  ConnectorID=724 | Style=Mode=1;EOID=8146543C;SOID=EB18B0D2;Color=-1;LWidth=0; | Geometry=EDGE=2;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;
+  ConnectorID=725 | Style=Mode=1;EOID=8146543C;SOID=8146543C;Color=-1;LWidth=0; | Geometry=EDGE=2;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;
+  ConnectorID=726 | Style=Mode=1;EOID=205FE5E9;SOID=8146543C;Color=-1;LWidth=0; | Geometry=EDGE=2;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;
+  ConnectorID=727 | Style=Mode=1;EOID=8146543C;SOID=205FE5E9;Color=-1;LWidth=0; | Geometry=EDGE=4;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;
+  ConnectorID=728 | Style=Mode=1;EOID=8146543C;SOID=8146543C;Color=-1;LWidth=0; | Geometry=EDGE=2;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;
+  ConnectorID=729 | Style=Mode=1;EOID=205FE5E9;SOID=8146543C;Color=-1;LWidth=0; | Geometry=EDGE=2;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;
+  ConnectorID=730 | Style=Mode=1;EOID=8146543C;SOID=205FE5E9;Color=-1;LWidth=0; | Geometry=EDGE=4;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;
+  ConnectorID=731 | Style=Mode=1;EOID=EB18B0D2;SOID=8146543C;Color=-1;LWidth=0; | Geometry=EDGE=4;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;
+  ConnectorID=732 | Style=Mode=1;EOID=DD8EBCCC;SOID=EB18B0D2;Color=-1;LWidth=0; | Geometry=EDGE=1;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;
+  ConnectorID=733 | Style=Mode=1;EOID=D08D49C3;SOID=DD8EBCCC;Color=-1;LWidth=0; | Geometry=SX=32;SY=37;EX=62;EY=37;EDGE=4;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;
+  ConnectorID=734 | Style=Mode=1;EOID=58F1674B;SOID=D08D49C3;Color=-1;LWidth=0; | Geometry=SX=110;SY=115;EX=80;EY=115;EDGE=4;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;
+  ConnectorID=739 | Style=Mode=3;EOID=D08D49C3;SOID=58F1674B;Color=-1;LWidth=0; | Geometry=SX=0;SY=-3;EX=0;EY=1;EDGE=2;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;
+  ConnectorID=740 | Style=Mode=1;EOID=D08D49C3;SOID=58F1674B;Color=-1;LWidth=0; | Geometry=SX=0;SY=31;EX=30;EY=31;EDGE=2;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;
+=== Fin
+=== Diagrama: CU11 - Comunicacion Validar QR de ingreso | Type=Collaboration | DiagramID=30
+    StyleEx=ExcludeRTF=0;DocAll=0;HideQuals=0;AttPkg=1;ShowTests=0;ShowMaint=0;SuppressFOC=1;MatrixActive=0;SwimlanesActive=1;KanbanActive=0;MatrixLineWidth=1;MatrixLineClr=0;MatrixLocked=0;TConnectorNotation=UML 2.1;TExplicitNavigability=0;AdvancedElementProps=1;AdvancedFeatureProps=1;AdvancedConnectorProps=1;m_bElementClassifier=1;SPT=1;MDGDgm=;STBLDgm=;ShowNotes=0;VisibleAttributeDetail=0;ShowOpRetType=1;SuppressBrackets=0;SuppConnectorLabels=0;PrintPageHeadFoot=0;ShowAsList=0;SuppressedCompartments=;Theme=:119;SaveTag=7A4F5726;
+    ExtendedStyle=HideRel=0;ShowTags=0;ShowReqs=0;ShowCons=0;OpParams=1;ShowSN=0;ScalePI=0;PPgs.cx=0;PPgs.cy=0;PSize=1;ShowIcons=1;SuppCN=0;HideProps=0;HideParents=0;UseAlias=0;HideAtts=0;HideOps=0;HideStereo=0;HideEStereo=0;ShowRec=1;ShowRes=0;ShowShape=1;FormName=;
+--- Elemento: Personal de Caja | Type=Actor | Stereotype= | ElementID=225
+  ConnectorID=757 | Type=Association | Subtype= | Name= | ClientID=225 | SupplierID=226 | DiagramID=0 | SequenceNo=0 | Direction=Unspecified | Stereotype=
+      StyleEx=
+      StateFlags= | EventFlags=
+      TransitionEvent= | TransitionGuard= | TransitionAction=
+      MiscData(0)=
+      MiscData(1)=
+      MiscData(2)=
+      MiscData(3)=
+      MiscData(4)=
+  ConnectorID=762 | Type=Collaboration | Subtype= | Name=escanearQr() | ClientID=225 | SupplierID=226 | DiagramID=30 | SequenceNo=1 | Direction=Source -> Destination | Stereotype=
+      StyleEx=
+      StateFlags=IsReturn=false; | EventFlags=
+      TransitionEvent=Synchronous | TransitionGuard= | TransitionAction=Call
+      MiscData(0)=Synchronous
+      MiscData(1)=
+      MiscData(2)=Call
+      MiscData(3)=0.1
+      MiscData(4)=SX=0;SY=31;EX=30;EY=31;EDGE=2;
+  ConnectorID=772 | Type=Collaboration | Subtype= | Name=mostrar(Ingreso autorizado) | ClientID=226 | SupplierID=225 | DiagramID=30 | SequenceNo=11 | Direction=Source -> Destination | Stereotype=
+      StyleEx=
+      StateFlags=IsReturn=false; | EventFlags=
+      TransitionEvent=Synchronous | TransitionGuard= | TransitionAction=Call
+      MiscData(0)=Synchronous
+      MiscData(1)=
+      MiscData(2)=Call
+      MiscData(3)=0.11
+      MiscData(4)=SX=0;SY=-31;EX=-30;EY=-31;EDGE=4;
+--- Elemento: Vista (Backoffice) | Type=Object | Stereotype=boundary | ElementID=226
+  ConnectorID=758 | Type=Association | Subtype= | Name= | ClientID=226 | SupplierID=227 | DiagramID=0 | SequenceNo=0 | Direction=Unspecified | Stereotype=
+      StyleEx=
+      StateFlags= | EventFlags=
+      TransitionEvent= | TransitionGuard= | TransitionAction=
+      MiscData(0)=
+      MiscData(1)=
+      MiscData(2)=
+      MiscData(3)=
+      MiscData(4)=
+  ConnectorID=763 | Type=Collaboration | Subtype= | Name=validarQr(qr) | ClientID=226 | SupplierID=227 | DiagramID=30 | SequenceNo=2 | Direction=Source -> Destination | Stereotype=
+      StyleEx=
+      StateFlags=IsReturn=false; | EventFlags=
+      TransitionEvent=Synchronous | TransitionGuard= | TransitionAction=Call
+      MiscData(0)=Synchronous
+      MiscData(1)=
+      MiscData(2)=Call
+      MiscData(3)=0.2
+      MiscData(4)=SX=0;SY=31;EX=30;EY=31;EDGE=2;
+  ConnectorID=771 | Type=Collaboration | Subtype= | Name=return(200 OK) | ClientID=227 | SupplierID=226 | DiagramID=30 | SequenceNo=10 | Direction=Source -> Destination | Stereotype=
+      StyleEx=
+      StateFlags=IsReturn=true; | EventFlags=
+      TransitionEvent=Synchronous | TransitionGuard= | TransitionAction=Call
+      MiscData(0)=Synchronous
+      MiscData(1)=
+      MiscData(2)=Call
+      MiscData(3)=0.10
+      MiscData(4)=SX=0;SY=-31;EX=-30;EY=-31;EDGE=4;
+--- Elemento: Gateway (api-gw) | Type=Object | Stereotype=control | ElementID=227
+  ConnectorID=759 | Type=Association | Subtype= | Name= | ClientID=227 | SupplierID=228 | DiagramID=0 | SequenceNo=0 | Direction=Unspecified | Stereotype=
+      StyleEx=
+      StateFlags= | EventFlags=
+      TransitionEvent= | TransitionGuard= | TransitionAction=
+      MiscData(0)=
+      MiscData(1)=
+      MiscData(2)=
+      MiscData(3)=
+      MiscData(4)=
+  ConnectorID=764 | Type=Collaboration | Subtype= | Name=validarQr(qr) | ClientID=227 | SupplierID=228 | DiagramID=30 | SequenceNo=3 | Direction=Source -> Destination | Stereotype=
+      StyleEx=
+      StateFlags=IsReturn=false; | EventFlags=
+      TransitionEvent=Synchronous | TransitionGuard= | TransitionAction=Call
+      MiscData(0)=Synchronous
+      MiscData(1)=
+      MiscData(2)=Call
+      MiscData(3)=0.3
+      MiscData(4)=SX=262;SY=-22;EX=262;EY=-52;EDGE=3;
+  ConnectorID=770 | Type=Collaboration | Subtype= | Name=return(validarQr) | ClientID=228 | SupplierID=227 | DiagramID=30 | SequenceNo=9 | Direction=Source -> Destination | Stereotype=
+      StyleEx=
+      StateFlags=IsReturn=true; | EventFlags=
+      TransitionEvent=Synchronous | TransitionGuard= | TransitionAction=Call
+      MiscData(0)=Synchronous
+      MiscData(1)=
+      MiscData(2)=Call
+      MiscData(3)=0.9
+      MiscData(4)=SX=49;SY=43;EX=49;EY=73;EDGE=1;
+  ConnectorID=773 | Type=Collaboration | Subtype= | Name=<call> | ClientID=227 | SupplierID=228 | DiagramID=30 | SequenceNo=12 | Direction=Source -> Destination | Stereotype=
+      StyleEx=
+      StateFlags=IsReturn=false; | EventFlags=
+      TransitionEvent=Synchronous | TransitionGuard= | TransitionAction=Call
+      MiscData(0)=Synchronous
+      MiscData(1)=
+      MiscData(2)=Call
+      MiscData(3)=0.12
+      MiscData(4)=SX=-58;SY=4;EX=-28;EY=4;EDGE=3;
+--- Elemento: Gateway (graphql-gw) | Type=Object | Stereotype=control | ElementID=228
+  ConnectorID=760 | Type=Association | Subtype= | Name= | ClientID=228 | SupplierID=229 | DiagramID=0 | SequenceNo=0 | Direction=Unspecified | Stereotype=
+      StyleEx=
+      StateFlags= | EventFlags=
+      TransitionEvent= | TransitionGuard= | TransitionAction=
+      MiscData(0)=
+      MiscData(1)=
+      MiscData(2)=
+      MiscData(3)=
+      MiscData(4)=
+  ConnectorID=765 | Type=Collaboration | Subtype= | Name=validarQr(qr) | ClientID=228 | SupplierID=229 | DiagramID=30 | SequenceNo=4 | Direction=Source -> Destination | Stereotype=
+      StyleEx=
+      StateFlags=IsReturn=false; | EventFlags=
+      TransitionEvent=Synchronous | TransitionGuard= | TransitionAction=Call
+      MiscData(0)=Synchronous
+      MiscData(1)=
+      MiscData(2)=Call
+      MiscData(3)=0.4
+      MiscData(4)=SX=-45;SY=37;EX=-15;EY=37;EDGE=2;
+  ConnectorID=769 | Type=Collaboration | Subtype= | Name=return(ok, reservaId) | ClientID=229 | SupplierID=228 | DiagramID=30 | SequenceNo=8 | Direction=Source -> Destination | Stereotype=
+      StyleEx=
+      StateFlags=IsReturn=true; | EventFlags=
+      TransitionEvent=Synchronous | TransitionGuard= | TransitionAction=Call
+      MiscData(0)=Synchronous
+      MiscData(1)=
+      MiscData(2)=Call
+      MiscData(3)=0.8
+      MiscData(4)=SX=0;SY=-31;EX=-30;EY=-31;EDGE=4;
+--- Elemento: IngresoResolver (MSReservas) | Type=Object | Stereotype=control | ElementID=229
+  ConnectorID=761 | Type=Association | Subtype= | Name= | ClientID=229 | SupplierID=230 | DiagramID=0 | SequenceNo=0 | Direction=Unspecified | Stereotype=
+      StyleEx=
+      StateFlags= | EventFlags=
+      TransitionEvent= | TransitionGuard= | TransitionAction=
+      MiscData(0)=
+      MiscData(1)=
+      MiscData(2)=
+      MiscData(3)=
+      MiscData(4)=
+  ConnectorID=766 | Type=Collaboration | Subtype= | Name=findById(reservaId) | ClientID=229 | SupplierID=230 | DiagramID=30 | SequenceNo=5 | Direction=Source -> Destination | Stereotype=
+      StyleEx=
+      StateFlags=IsReturn=false; | EventFlags=
+      TransitionEvent=Synchronous | TransitionGuard= | TransitionAction=Call
+      MiscData(0)=Synchronous
+      MiscData(1)=
+      MiscData(2)=Call
+      MiscData(3)=0.5
+      MiscData(4)=SX=0;SY=31;EX=30;EY=31;EDGE=2;
+  ConnectorID=767 | Type=Collaboration | Subtype= | Name=return(reserva) | ClientID=230 | SupplierID=229 | DiagramID=30 | SequenceNo=6 | Direction=Source -> Destination | Stereotype=
+      StyleEx=
+      StateFlags=IsReturn=true; | EventFlags=
+      TransitionEvent=Synchronous | TransitionGuard= | TransitionAction=Call
+      MiscData(0)=Synchronous
+      MiscData(1)=
+      MiscData(2)=Call
+      MiscData(3)=0.6
+      MiscData(4)=SX=0;SY=-31;EX=-30;EY=-31;EDGE=4;
+  ConnectorID=768 | Type=Collaboration | Subtype= | Name=save(reserva consumida) | ClientID=229 | SupplierID=230 | DiagramID=30 | SequenceNo=7 | Direction=Source -> Destination | Stereotype=
+      StyleEx=
+      StateFlags=IsReturn=false; | EventFlags=
+      TransitionEvent=Synchronous | TransitionGuard= | TransitionAction=Call
+      MiscData(0)=Synchronous
+      MiscData(1)=
+      MiscData(2)=Call
+      MiscData(3)=0.7
+      MiscData(4)=SX=0;SY=55;EX=30;EY=55;EDGE=2;
+--- Elemento: BD Reservas (PostgreSQL) | Type=Object | Stereotype=entity | ElementID=230
+--- Elemento: ProxyConnector | Type=ProxyConnector | Stereotype= | ElementID=233
+  ConnectorID=775 | Type=Association | Subtype= | Name= | ClientID=232 | SupplierID=233 | DiagramID=0 | SequenceNo=0 | Direction=Unspecified | Stereotype=
+      StyleEx=
+      StateFlags= | EventFlags=
+      TransitionEvent= | TransitionGuard= | TransitionAction=
+      MiscData(0)=
+      MiscData(1)=
+      MiscData(2)=
+      MiscData(3)=
+      MiscData(4)=SX=0;SY=0;EX=0;EY=0;EDGE=0;
+--- Elemento: ProxyConnector | Type=ProxyConnector | Stereotype= | ElementID=232
+=== DiagramLinks
+  ConnectorID=757 | Style=Mode=3;EOID=E315C588;SOID=0381382E;Color=-1;LWidth=0; | Geometry=EDGE=2;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;
+  ConnectorID=758 | Style=Mode=3;EOID=BC4C86C5;SOID=E315C588;Color=-1;LWidth=0; | Geometry=EDGE=2;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;
+  ConnectorID=759 | Style=Mode=3;EOID=788D2775;SOID=BC4C86C5;Color=-1;LWidth=0; | Geometry=SX=-2;SY=-1;EX=-2;EY=-1;EDGE=3;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;
+  ConnectorID=760 | Style=Mode=3;EOID=36FE2979;SOID=788D2775;Color=-1;LWidth=0; | Geometry=EDGE=2;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;
+  ConnectorID=761 | Style=Mode=3;EOID=986909C3;SOID=36FE2979;Color=-1;LWidth=0; | Geometry=EDGE=2;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;
+  ConnectorID=762 | Style= | Geometry=SX=0;SY=31;EX=30;EY=31;EDGE=2;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;
+  ConnectorID=763 | Style= | Geometry=SX=0;SY=31;EX=30;EY=31;EDGE=2;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;
+  ConnectorID=764 | Style= | Geometry=SX=150;SY=12;EX=150;EY=-18;EDGE=3;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;
+  ConnectorID=765 | Style= | Geometry=SX=0;SY=31;EX=30;EY=31;EDGE=2;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;
+  ConnectorID=766 | Style= | Geometry=SX=0;SY=31;EX=30;EY=31;EDGE=2;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;
+  ConnectorID=767 | Style= | Geometry=SX=0;SY=-31;EX=-30;EY=-31;EDGE=4;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;
+  ConnectorID=768 | Style= | Geometry=SX=0;SY=55;EX=30;EY=55;EDGE=2;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;
+  ConnectorID=769 | Style= | Geometry=SX=0;SY=-31;EX=-30;EY=-31;EDGE=4;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;
+  ConnectorID=770 | Style= | Geometry=SX=-40;SY=12;EX=-40;EY=42;EDGE=1;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;
+  ConnectorID=771 | Style= | Geometry=SX=0;SY=-31;EX=-30;EY=-31;EDGE=4;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;
+  ConnectorID=772 | Style= | Geometry=SX=0;SY=-31;EX=-30;EY=-31;EDGE=4;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;
+  ConnectorID=773 | Style=Mode=1;EOID=788D2775;SOID=BC4C86C5;Color=-1;LWidth=0; | Geometry=SX=-53;SY=4;EX=-23;EY=4;EDGE=3;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;
+  ConnectorID=775 | Style=Mode=3;EOID=3A1879C6;SOID=1B17591F;Color=-1;LWidth=0; | Geometry=SX=0;SY=0;EX=0;EY=0;EDGE=0;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;
+=== SQL t_connector (mensajes Collaboration de este diagrama)
+<?xml version="1.0"?>
+
+<EADATA version="1.0" exporter="Enterprise Architect">
+
+	<Dataset_0><Data><Row><Connector_ID>762</Connector_ID><Name>escanearQr()</Name><Direction>Source -&gt; Destination</Direction><Notes/><Connector_Type>Collaboration</Connector_Type><SubType/><SourceCard/><SourceAccess>Public</SourceAccess><SourceElement/><DestCard/><DestAccess>Public</DestAccess><DestElement/><SourceRole/><SourceRoleType/><SourceRoleNote/><SourceContainment/><SourceIsAggregate>0</SourceIsAggregate><SourceIsOrdered>0</SourceIsOrdered><SourceQualifier/><DestRole/><DestRoleType/><DestRoleNote/><DestContainment/><DestIsAggregate>0</DestIsAggregate><DestIsOrdered>0</DestIsOrdered><DestQualifier/><Start_Object_ID>225</Start_Object_ID><End_Object_ID>226</End_Object_ID><Top_Start_Label>escanearQr()</Top_Start_Label><Top_Mid_Label/><Top_End_Label/><Btm_Start_Label/><Btm_Mid_Label/><Btm_End_Label/><Start_Edge>2</Start_Edge><End_Edge>4</End_Edge><PtStartX>102</PtStartX><PtStartY>-128</PtStartY><PtEndX>420</PtEndX><PtEndY>-124</PtEndY><SeqNo>1</SeqNo><HeadStyle>0</HeadStyle><LineStyle>0</LineStyle><RouteStyle>1</RouteStyle><IsBold>0</IsBold><LineColor>-1</LineColor><Stereotype/><VirtualInheritance/><LinkAccess/><PDATA1>Synchronous</PDATA1><PDATA2/><PDATA3>Call</PDATA3><PDATA4>0.1</PDATA4><PDATA5>SX=0;SY=31;EX=30;EY=31;EDGE=2;</PDATA5><DiagramID>30</DiagramID><ea_guid>{86FD28B7-AD01-4001-82B2-0A587CEEDE99}</ea_guid><SourceConstraint/><DestConstraint/><SourceIsNavigable>FALSE</SourceIsNavigable><DestIsNavigable>FALSE</DestIsNavigable><IsRoot>FALSE</IsRoot><IsLeaf>FALSE</IsLeaf><IsSpec>FALSE</IsSpec><SourceChangeable/><DestChangeable/><SourceTS/><DestTS/><StateFlags>IsReturn=false;</StateFlags><ActionFlags/><IsSignal>FALSE</IsSignal><IsStimulus>FALSE</IsStimulus><DispatchAction/><Target2>0</Target2><StyleEx/><SourceStereotype/><DestStereotype/><SourceStyle>Navigable=Non-Navigable;Owned=0;</SourceStyle><DestStyle>Navigable=Navigable;Owned=0;</DestStyle><EventFlags/></Row><Row><Connector_ID>763</Connector_ID><Name>validarQr(qr)</Name><Direction>Source -&gt; Destination</Direction><Notes/><Connector_Type>Collaboration</Connector_Type><SubType/><SourceCard/><SourceAccess>Public</SourceAccess><SourceElement/><DestCard/><DestAccess>Public</DestAccess><DestElement/><SourceRole/><SourceRoleType/><SourceRoleNote/><SourceContainment/><SourceIsAggregate>0</SourceIsAggregate><SourceIsOrdered>0</SourceIsOrdered><SourceQualifier/><DestRole/><DestRoleType/><DestRoleNote/><DestContainment/><DestIsAggregate>0</DestIsAggregate><DestIsOrdered>0</DestIsOrdered><DestQualifier/><Start_Object_ID>226</Start_Object_ID><End_Object_ID>227</End_Object_ID><Top_Start_Label>validarQr(qr)</Top_Start_Label><Top_Mid_Label/><Top_End_Label/><Btm_Start_Label/><Btm_Mid_Label/><Btm_End_Label/><Start_Edge>2</Start_Edge><End_Edge>4</End_Edge><PtStartX>510</PtStartX><PtStartY>-124</PtStartY><PtEndX>840</PtEndX><PtEndY>-124</PtEndY><SeqNo>2</SeqNo><HeadStyle>0</HeadStyle><LineStyle>0</LineStyle><RouteStyle>1</RouteStyle><IsBold>0</IsBold><LineColor>-1</LineColor><Stereotype/><VirtualInheritance/><LinkAccess/><PDATA1>Synchronous</PDATA1><PDATA2/><PDATA3>Call</PDATA3><PDATA4>0.2</PDATA4><PDATA5>SX=0;SY=31;EX=30;EY=31;EDGE=2;</PDATA5><DiagramID>30</DiagramID><ea_guid>{BDC4779D-D913-4ce5-8266-F4A7980C293B}</ea_guid><SourceConstraint/><DestConstraint/><SourceIsNavigable>FALSE</SourceIsNavigable><DestIsNavigable>FALSE</DestIsNavigable><IsRoot>FALSE</IsRoot><IsLeaf>FALSE</IsLeaf><IsSpec>FALSE</IsSpec><SourceChangeable/><DestChangeable/><SourceTS/><DestTS/><StateFlags>IsReturn=false;</StateFlags><ActionFlags/><IsSignal>FALSE</IsSignal><IsStimulus>FALSE</IsStimulus><DispatchAction/><Target2>0</Target2><StyleEx/><SourceStereotype/><DestStereotype/><SourceStyle>Navigable=Non-Navigable;Owned=0;</SourceStyle><DestStyle>Navigable=Navigable;Owned=0;</DestStyle><EventFlags/></Row><Row><Connector_ID>764</Connector_ID><Name>validarQr(qr)</Name><Direction>Source -&gt; Destination</Direction><Notes/><Connector_Type>Collaboration</Connector_Type><SubType/><SourceCard/><SourceAccess>Public</SourceAccess><SourceElement/><DestCard/><DestAccess>Public</DestAccess><DestElement/><SourceRole/><SourceRoleType/><SourceRoleNote/><SourceContainment/><SourceIsAggregate>0</SourceIsAggregate><SourceIsOrdered>0</SourceIsOrdered><SourceQualifier/><DestRole/><DestRoleType/><DestRoleNote/><DestContainment/><DestIsAggregate>0</DestIsAggregate><DestIsOrdered>0</DestIsOrdered><DestQualifier/><Start_Object_ID>227</Start_Object_ID><End_Object_ID>228</End_Object_ID><Top_Start_Label>validarQr(qr)</Top_Start_Label><Top_Mid_Label/><Top_End_Label/><Btm_Start_Label/><Btm_Mid_Label/><Btm_End_Label/><Start_Edge>3</Start_Edge><End_Edge>1</End_Edge><PtStartX>872</PtStartX><PtStartY>-179</PtStartY><PtEndX>824</PtEndX><PtEndY>-400</PtEndY><SeqNo>3</SeqNo><HeadStyle>0</HeadStyle><LineStyle>0</LineStyle><RouteStyle>1</RouteStyle><IsBold>0</IsBold><LineColor>-1</LineColor><Stereotype/><VirtualInheritance/><LinkAccess/><PDATA1>Synchronous</PDATA1><PDATA2/><PDATA3>Call</PDATA3><PDATA4>0.3</PDATA4><PDATA5>SX=262;SY=-22;EX=262;EY=-52;EDGE=3;</PDATA5><DiagramID>30</DiagramID><ea_guid>{E8A787E6-D960-4bb4-81CC-A8940E0E7942}</ea_guid><SourceConstraint/><DestConstraint/><SourceIsNavigable>FALSE</SourceIsNavigable><DestIsNavigable>FALSE</DestIsNavigable><IsRoot>FALSE</IsRoot><IsLeaf>FALSE</IsLeaf><IsSpec>FALSE</IsSpec><SourceChangeable/><DestChangeable/><SourceTS/><DestTS/><StateFlags>IsReturn=false;</StateFlags><ActionFlags/><IsSignal>FALSE</IsSignal><IsStimulus>FALSE</IsStimulus><DispatchAction/><Target2>0</Target2><StyleEx/><SourceStereotype/><DestStereotype/><SourceStyle>Navigable=Non-Navigable;Owned=0;</SourceStyle><DestStyle>Navigable=Navigable;Owned=0;</DestStyle><EventFlags/></Row><Row><Connector_ID>765</Connector_ID><Name>validarQr(qr)</Name><Direction>Source -&gt; Destination</Direction><Notes/><Connector_Type>Collaboration</Connector_Type><SubType/><SourceCard/><SourceAccess>Public</SourceAccess><SourceElement/><DestCard/><DestAccess>Public</DestAccess><DestElement/><SourceRole/><SourceRoleType/><SourceRoleNote/><SourceContainment/><SourceIsAggregate>0</SourceIsAggregate><SourceIsOrdered>0</SourceIsOrdered><SourceQualifier/><DestRole/><DestRoleType/><DestRoleNote/><DestContainment/><DestIsAggregate>0</DestIsAggregate><DestIsOrdered>0</DestIsOrdered><DestQualifier/><Start_Object_ID>228</Start_Object_ID><End_Object_ID>229</End_Object_ID><Top_Start_Label>validarQr(qr)</Top_Start_Label><Top_Mid_Label/><Top_End_Label/><Btm_Start_Label/><Btm_Mid_Label/><Btm_End_Label/><Start_Edge>2</Start_Edge><End_Edge>4</End_Edge><PtStartX>855</PtStartX><PtStartY>-465</PtStartY><PtEndX>1260</PtEndX><PtEndY>-465</PtEndY><SeqNo>4</SeqNo><HeadStyle>0</HeadStyle><LineStyle>0</LineStyle><RouteStyle>1</RouteStyle><IsBold>0</IsBold><LineColor>-1</LineColor><Stereotype/><VirtualInheritance/><LinkAccess/><PDATA1>Synchronous</PDATA1><PDATA2/><PDATA3>Call</PDATA3><PDATA4>0.4</PDATA4><PDATA5>SX=-45;SY=37;EX=-15;EY=37;EDGE=2;</PDATA5><DiagramID>30</DiagramID><ea_guid>{5A19D680-4A03-4704-BEAD-FFE37C00A619}</ea_guid><SourceConstraint/><DestConstraint/><SourceIsNavigable>FALSE</SourceIsNavigable><DestIsNavigable>FALSE</DestIsNavigable><IsRoot>FALSE</IsRoot><IsLeaf>FALSE</IsLeaf><IsSpec>FALSE</IsSpec><SourceChangeable/><DestChangeable/><SourceTS/><DestTS/><StateFlags>IsReturn=false;</StateFlags><ActionFlags/><IsSignal>FALSE</IsSignal><IsStimulus>FALSE</IsStimulus><DispatchAction/><Target2>0</Target2><StyleEx/><SourceStereotype/><DestStereotype/><SourceStyle>Navigable=Non-Navigable;Owned=0;</SourceStyle><DestStyle>Navigable=Navigable;Owned=0;</DestStyle><EventFlags/></Row><Row><Connector_ID>766</Connector_ID><Name>findById(reservaId)</Name><Direction>Source -&gt; Destination</Direction><Notes/><Connector_Type>Collaboration</Connector_Type><SubType/><SourceCard/><SourceAccess>Public</SourceAccess><SourceElement/><DestCard/><DestAccess>Public</DestAccess><DestElement/><SourceRole/><SourceRoleType/><SourceRoleNote/><SourceContainment/><SourceIsAggregate>0</SourceIsAggregate><SourceIsOrdered>0</SourceIsOrdered><SourceQualifier/><DestRole/><DestRoleType/><DestRoleNote/><DestContainment/><DestIsAggregate>0</DestIsAggregate><DestIsOrdered>0</DestIsOrdered><DestQualifier/><Start_Object_ID>229</Start_Object_ID><End_Object_ID>230</End_Object_ID><Top_Start_Label>findById(reservaId)</Top_Start_Label><Top_Mid_Label/><Top_End_Label/><Btm_Start_Label/><Btm_Mid_Label/><Btm_End_Label/><Start_Edge>2</Start_Edge><End_Edge>4</End_Edge><PtStartX>1350</PtStartX><PtStartY>-461</PtStartY><PtEndX>1680</PtEndX><PtEndY>-438</PtEndY><SeqNo>5</SeqNo><HeadStyle>0</HeadStyle><LineStyle>0</LineStyle><RouteStyle>1</RouteStyle><IsBold>0</IsBold><LineColor>-1</LineColor><Stereotype/><VirtualInheritance/><LinkAccess/><PDATA1>Synchronous</PDATA1><PDATA2/><PDATA3>Call</PDATA3><PDATA4>0.5</PDATA4><PDATA5>SX=0;SY=31;EX=30;EY=31;EDGE=2;</PDATA5><DiagramID>30</DiagramID><ea_guid>{4D84E0EE-BFB2-4b7f-810F-9BDB169D3982}</ea_guid><SourceConstraint/><DestConstraint/><SourceIsNavigable>FALSE</SourceIsNavigable><DestIsNavigable>FALSE</DestIsNavigable><IsRoot>FALSE</IsRoot><IsLeaf>FALSE</IsLeaf><IsSpec>FALSE</IsSpec><SourceChangeable/><DestChangeable/><SourceTS/><DestTS/><StateFlags>IsReturn=false;</StateFlags><ActionFlags/><IsSignal>FALSE</IsSignal><IsStimulus>FALSE</IsStimulus><DispatchAction/><Target2>0</Target2><StyleEx/><SourceStereotype/><DestStereotype/><SourceStyle>Navigable=Non-Navigable;Owned=0;</SourceStyle><DestStyle>Navigable=Navigable;Owned=0;</DestStyle><EventFlags/></Row><Row><Connector_ID>767</Connector_ID><Name>return(reserva)</Name><Direction>Source -&gt; Destination</Direction><Notes/><Connector_Type>Collaboration</Connector_Type><SubType/><SourceCard/><SourceAccess>Public</SourceAccess><SourceElement/><DestCard/><DestAccess>Public</DestAccess><DestElement/><SourceRole/><SourceRoleType/><SourceRoleNote/><SourceContainment/><SourceIsAggregate>0</SourceIsAggregate><SourceIsOrdered>0</SourceIsOrdered><SourceQualifier/><DestRole/><DestRoleType/><DestRoleNote/><DestContainment/><DestIsAggregate>0</DestIsAggregate><DestIsOrdered>0</DestIsOrdered><DestQualifier/><Start_Object_ID>230</Start_Object_ID><End_Object_ID>229</End_Object_ID><Top_Start_Label>return(reserva)</Top_Start_Label><Top_Mid_Label/><Top_End_Label/><Btm_Start_Label/><Btm_Mid_Label/><Btm_End_Label/><Start_Edge>4</Start_Edge><End_Edge>2</End_Edge><PtStartX>1680</PtStartX><PtStartY>-438</PtStartY><PtEndX>1350</PtEndX><PtEndY>-461</PtEndY><SeqNo>6</SeqNo><HeadStyle>0</HeadStyle><LineStyle>0</LineStyle><RouteStyle>1</RouteStyle><IsBold>0</IsBold><LineColor>-1</LineColor><Stereotype/><VirtualInheritance/><LinkAccess/><PDATA1>Synchronous</PDATA1><PDATA2/><PDATA3>Call</PDATA3><PDATA4>0.6</PDATA4><PDATA5>SX=0;SY=-31;EX=-30;EY=-31;EDGE=4;</PDATA5><DiagramID>30</DiagramID><ea_guid>{6E3E0AEC-1235-47e0-955F-42E199310137}</ea_guid><SourceConstraint/><DestConstraint/><SourceIsNavigable>FALSE</SourceIsNavigable><DestIsNavigable>FALSE</DestIsNavigable><IsRoot>FALSE</IsRoot><IsLeaf>FALSE</IsLeaf><IsSpec>FALSE</IsSpec><SourceChangeable/><DestChangeable/><SourceTS/><DestTS/><StateFlags>IsReturn=true;</StateFlags><ActionFlags/><IsSignal>FALSE</IsSignal><IsStimulus>FALSE</IsStimulus><DispatchAction/><Target2>0</Target2><StyleEx/><SourceStereotype/><DestStereotype/><SourceStyle>Navigable=Non-Navigable;Owned=0;</SourceStyle><DestStyle>Navigable=Navigable;Owned=0;</DestStyle><EventFlags/></Row><Row><Connector_ID>768</Connector_ID><Name>save(reserva consumida)</Name><Direction>Source -&gt; Destination</Direction><Notes/><Connector_Type>Collaboration</Connector_Type><SubType/><SourceCard/><SourceAccess>Public</SourceAccess><SourceElement/><DestCard/><DestAccess>Public</DestAccess><DestElement/><SourceRole/><SourceRoleType/><SourceRoleNote/><SourceContainment/><SourceIsAggregate>0</SourceIsAggregate><SourceIsOrdered>0</SourceIsOrdered><SourceQualifier/><DestRole/><DestRoleType/><DestRoleNote/><DestContainment/><DestIsAggregate>0</DestIsAggregate><DestIsOrdered>0</DestIsOrdered><DestQualifier/><Start_Object_ID>229</Start_Object_ID><End_Object_ID>230</End_Object_ID><Top_Start_Label>save(reserva consumida)</Top_Start_Label><Top_Mid_Label/><Top_End_Label/><Btm_Start_Label/><Btm_Mid_Label/><Btm_End_Label/><Start_Edge>2</Start_Edge><End_Edge>4</End_Edge><PtStartX>1350</PtStartX><PtStartY>-461</PtStartY><PtEndX>1680</PtEndX><PtEndY>-438</PtEndY><SeqNo>7</SeqNo><HeadStyle>0</HeadStyle><LineStyle>0</LineStyle><RouteStyle>1</RouteStyle><IsBold>0</IsBold><LineColor>-1</LineColor><Stereotype/><VirtualInheritance/><LinkAccess/><PDATA1>Synchronous</PDATA1><PDATA2/><PDATA3>Call</PDATA3><PDATA4>0.7</PDATA4><PDATA5>SX=0;SY=55;EX=30;EY=55;EDGE=2;</PDATA5><DiagramID>30</DiagramID><ea_guid>{49E05E61-6221-4852-B4DF-AD000DB547F9}</ea_guid><SourceConstraint/><DestConstraint/><SourceIsNavigable>FALSE</SourceIsNavigable><DestIsNavigable>FALSE</DestIsNavigable><IsRoot>FALSE</IsRoot><IsLeaf>FALSE</IsLeaf><IsSpec>FALSE</IsSpec><SourceChangeable/><DestChangeable/><SourceTS/><DestTS/><StateFlags>IsReturn=false;</StateFlags><ActionFlags/><IsSignal>FALSE</IsSignal><IsStimulus>FALSE</IsStimulus><DispatchAction/><Target2>0</Target2><StyleEx/><SourceStereotype/><DestStereotype/><SourceStyle>Navigable=Non-Navigable;Owned=0;</SourceStyle><DestStyle>Navigable=Navigable;Owned=0;</DestStyle><EventFlags/></Row><Row><Connector_ID>769</Connector_ID><Name>return(ok, reservaId)</Name><Direction>Source -&gt; Destination</Direction><Notes/><Connector_Type>Collaboration</Connector_Type><SubType/><SourceCard/><SourceAccess>Public</SourceAccess><SourceElement/><DestCard/><DestAccess>Public</DestAccess><DestElement/><SourceRole/><SourceRoleType/><SourceRoleNote/><SourceContainment/><SourceIsAggregate>0</SourceIsAggregate><SourceIsOrdered>0</SourceIsOrdered><SourceQualifier/><DestRole/><DestRoleType/><DestRoleNote/><DestContainment/><DestIsAggregate>0</DestIsAggregate><DestIsOrdered>0</DestIsOrdered><DestQualifier/><Start_Object_ID>229</Start_Object_ID><End_Object_ID>228</End_Object_ID><Top_Start_Label>return(ok, reservaId)</Top_Start_Label><Top_Mid_Label/><Top_End_Label/><Btm_Start_Label/><Btm_Mid_Label/><Btm_End_Label/><Start_Edge>4</Start_Edge><End_Edge>2</End_Edge><PtStartX>1260</PtStartX><PtStartY>-465</PtStartY><PtEndX>855</PtEndX><PtEndY>-465</PtEndY><SeqNo>8</SeqNo><HeadStyle>0</HeadStyle><LineStyle>0</LineStyle><RouteStyle>1</RouteStyle><IsBold>0</IsBold><LineColor>-1</LineColor><Stereotype/><VirtualInheritance/><LinkAccess/><PDATA1>Synchronous</PDATA1><PDATA2/><PDATA3>Call</PDATA3><PDATA4>0.8</PDATA4><PDATA5>SX=0;SY=-31;EX=-30;EY=-31;EDGE=4;</PDATA5><DiagramID>30</DiagramID><ea_guid>{BF18D932-D0C5-4c5c-B044-7646BBC0B10D}</ea_guid><SourceConstraint/><DestConstraint/><SourceIsNavigable>FALSE</SourceIsNavigable><DestIsNavigable>FALSE</DestIsNavigable><IsRoot>FALSE</IsRoot><IsLeaf>FALSE</IsLeaf><IsSpec>FALSE</IsSpec><SourceChangeable/><DestChangeable/><SourceTS/><DestTS/><StateFlags>IsReturn=true;</StateFlags><ActionFlags/><IsSignal>FALSE</IsSignal><IsStimulus>FALSE</IsStimulus><DispatchAction/><Target2>0</Target2><StyleEx/><SourceStereotype/><DestStereotype/><SourceStyle>Navigable=Non-Navigable;Owned=0;</SourceStyle><DestStyle>Navigable=Navigable;Owned=0;</DestStyle><EventFlags/></Row><Row><Connector_ID>770</Connector_ID><Name>return(validarQr)</Name><Direction>Source -&gt; Destination</Direction><Notes/><Connector_Type>Collaboration</Connector_Type><SubType/><SourceCard/><SourceAccess>Public</SourceAccess><SourceElement/><DestCard/><DestAccess>Public</DestAccess><DestElement/><SourceRole/><SourceRoleType/><SourceRoleNote/><SourceContainment/><SourceIsAggregate>0</SourceIsAggregate><SourceIsOrdered>0</SourceIsOrdered><SourceQualifier/><DestRole/><DestRoleType/><DestRoleNote/><DestContainment/><DestIsAggregate>0</DestIsAggregate><DestIsOrdered>0</DestIsOrdered><DestQualifier/><Start_Object_ID>228</Start_Object_ID><End_Object_ID>227</End_Object_ID><Top_Start_Label>return(validarQr)</Top_Start_Label><Top_Mid_Label/><Top_End_Label/><Btm_Start_Label/><Btm_Mid_Label/><Btm_End_Label/><Start_Edge>1</Start_Edge><End_Edge>3</End_Edge><PtStartX>824</PtStartX><PtStartY>-400</PtStartY><PtEndX>872</PtEndX><PtEndY>-179</PtEndY><SeqNo>9</SeqNo><HeadStyle>0</HeadStyle><LineStyle>0</LineStyle><RouteStyle>1</RouteStyle><IsBold>0</IsBold><LineColor>-1</LineColor><Stereotype/><VirtualInheritance/><LinkAccess/><PDATA1>Synchronous</PDATA1><PDATA2/><PDATA3>Call</PDATA3><PDATA4>0.9</PDATA4><PDATA5>SX=49;SY=43;EX=49;EY=73;EDGE=1;</PDATA5><DiagramID>30</DiagramID><ea_guid>{EFEC814C-D4A5-403f-B69E-40119CDB4E31}</ea_guid><SourceConstraint/><DestConstraint/><SourceIsNavigable>FALSE</SourceIsNavigable><DestIsNavigable>FALSE</DestIsNavigable><IsRoot>FALSE</IsRoot><IsLeaf>FALSE</IsLeaf><IsSpec>FALSE</IsSpec><SourceChangeable/><DestChangeable/><SourceTS/><DestTS/><StateFlags>IsReturn=true;</StateFlags><ActionFlags/><IsSignal>FALSE</IsSignal><IsStimulus>FALSE</IsStimulus><DispatchAction/><Target2>0</Target2><StyleEx/><SourceStereotype/><DestStereotype/><SourceStyle>Navigable=Non-Navigable;Owned=0;</SourceStyle><DestStyle>Navigable=Navigable;Owned=0;</DestStyle><EventFlags/></Row><Row><Connector_ID>771</Connector_ID><Name>return(200 OK)</Name><Direction>Source -&gt; Destination</Direction><Notes/><Connector_Type>Collaboration</Connector_Type><SubType/><SourceCard/><SourceAccess>Public</SourceAccess><SourceElement/><DestCard/><DestAccess>Public</DestAccess><DestElement/><SourceRole/><SourceRoleType/><SourceRoleNote/><SourceContainment/><SourceIsAggregate>0</SourceIsAggregate><SourceIsOrdered>0</SourceIsOrdered><SourceQualifier/><DestRole/><DestRoleType/><DestRoleNote/><DestContainment/><DestIsAggregate>0</DestIsAggregate><DestIsOrdered>0</DestIsOrdered><DestQualifier/><Start_Object_ID>227</Start_Object_ID><End_Object_ID>226</End_Object_ID><Top_Start_Label>return(200 OK)</Top_Start_Label><Top_Mid_Label/><Top_End_Label/><Btm_Start_Label/><Btm_Mid_Label/><Btm_End_Label/><Start_Edge>4</Start_Edge><End_Edge>2</End_Edge><PtStartX>840</PtStartX><PtStartY>-124</PtStartY><PtEndX>510</PtEndX><PtEndY>-124</PtEndY><SeqNo>10</SeqNo><HeadStyle>0</HeadStyle><LineStyle>0</LineStyle><RouteStyle>1</RouteStyle><IsBold>0</IsBold><LineColor>-1</LineColor><Stereotype/><VirtualInheritance/><LinkAccess/><PDATA1>Synchronous</PDATA1><PDATA2/><PDATA3>Call</PDATA3><PDATA4>0.10</PDATA4><PDATA5>SX=0;SY=-31;EX=-30;EY=-31;EDGE=4;</PDATA5><DiagramID>30</DiagramID><ea_guid>{AB65419D-00B0-4c11-B9EF-05752908DDEF}</ea_guid><SourceConstraint/><DestConstraint/><SourceIsNavigable>FALSE</SourceIsNavigable><DestIsNavigable>FALSE</DestIsNavigable><IsRoot>FALSE</IsRoot><IsLeaf>FALSE</IsLeaf><IsSpec>FALSE</IsSpec><SourceChangeable/><DestChangeable/><SourceTS/><DestTS/><StateFlags>IsReturn=true;</StateFlags><ActionFlags/><IsSignal>FALSE</IsSignal><IsStimulus>FALSE</IsStimulus><DispatchAction/><Target2>0</Target2><StyleEx/><SourceStereotype/><DestStereotype/><SourceStyle>Navigable=Non-Navigable;Owned=0;</SourceStyle><DestStyle>Navigable=Navigable;Owned=0;</DestStyle><EventFlags/></Row><Row><Connector_ID>772</Connector_ID><Name>mostrar(Ingreso autorizado)</Name><Direction>Source -&gt; Destination</Direction><Notes/><Connector_Type>Collaboration</Connector_Type><SubType/><SourceCard/><SourceAccess>Public</SourceAccess><SourceElement/><DestCard/><DestAccess>Public</DestAccess><DestElement/><SourceRole/><SourceRoleType/><SourceRoleNote/><SourceContainment/><SourceIsAggregate>0</SourceIsAggregate><SourceIsOrdered>0</SourceIsOrdered><SourceQualifier/><DestRole/><DestRoleType/><DestRoleNote/><DestContainment/><DestIsAggregate>0</DestIsAggregate><DestIsOrdered>0</DestIsOrdered><DestQualifier/><Start_Object_ID>226</Start_Object_ID><End_Object_ID>225</End_Object_ID><Top_Start_Label>mostrar(Ingreso autorizado)</Top_Start_Label><Top_Mid_Label/><Top_End_Label/><Btm_Start_Label/><Btm_Mid_Label/><Btm_End_Label/><Start_Edge>4</Start_Edge><End_Edge>2</End_Edge><PtStartX>420</PtStartX><PtStartY>-124</PtStartY><PtEndX>102</PtEndX><PtEndY>-128</PtEndY><SeqNo>11</SeqNo><HeadStyle>0</HeadStyle><LineStyle>0</LineStyle><RouteStyle>1</RouteStyle><IsBold>0</IsBold><LineColor>-1</LineColor><Stereotype/><VirtualInheritance/><LinkAccess/><PDATA1>Synchronous</PDATA1><PDATA2/><PDATA3>Call</PDATA3><PDATA4>0.11</PDATA4><PDATA5>SX=0;SY=-31;EX=-30;EY=-31;EDGE=4;</PDATA5><DiagramID>30</DiagramID><ea_guid>{62DE9EEA-F9A3-4607-8C6C-B01BCC76A91A}</ea_guid><SourceConstraint/><DestConstraint/><SourceIsNavigable>FALSE</SourceIsNavigable><DestIsNavigable>FALSE</DestIsNavigable><IsRoot>FALSE</IsRoot><IsLeaf>FALSE</IsLeaf><IsSpec>FALSE</IsSpec><SourceChangeable/><DestChangeable/><SourceTS/><DestTS/><StateFlags>IsReturn=false;</StateFlags><ActionFlags/><IsSignal>FALSE</IsSignal><IsStimulus>FALSE</IsStimulus><DispatchAction/><Target2>0</Target2><StyleEx/><SourceStereotype/><DestStereotype/><SourceStyle>Navigable=Non-Navigable;Owned=0;</SourceStyle><DestStyle>Navigable=Navigable;Owned=0;</DestStyle><EventFlags/></Row><Row><Connector_ID>773</Connector_ID><Name>&lt;call&gt;</Name><Direction>Source -&gt; Destination</Direction><Notes/><Connector_Type>Collaboration</Connector_Type><SubType/><SourceCard/><SourceAccess>Public</SourceAccess><SourceElement/><DestCard/><DestAccess>Public</DestAccess><DestElement/><SourceRole/><SourceRoleType/><SourceRoleNote/><SourceContainment>Unspecified</SourceContainment><SourceIsAggregate>759</SourceIsAggregate><SourceIsOrdered>0</SourceIsOrdered><SourceQualifier/><DestRole/><DestRoleType/><DestRoleNote/><DestContainment>Unspecified</DestContainment><DestIsAggregate>0</DestIsAggregate><DestIsOrdered>0</DestIsOrdered><DestQualifier/><Start_Object_ID>227</Start_Object_ID><End_Object_ID>228</End_Object_ID><Top_Start_Label/><Top_Mid_Label/><Top_End_Label/><Btm_Start_Label/><Btm_Mid_Label/><Btm_End_Label/><Start_Edge>0</Start_Edge><End_Edge>0</End_Edge><PtStartX>0</PtStartX><PtStartY>0</PtStartY><PtEndX>0</PtEndX><PtEndY>0</PtEndY><SeqNo>12</SeqNo><HeadStyle>0</HeadStyle><LineStyle>0</LineStyle><RouteStyle>3</RouteStyle><IsBold>0</IsBold><LineColor>-1</LineColor><Stereotype/><VirtualInheritance>0</VirtualInheritance><LinkAccess/><PDATA1>Synchronous</PDATA1><PDATA2/><PDATA3>Call</PDATA3><PDATA4>0.12</PDATA4><PDATA5>SX=-58;SY=4;EX=-28;EY=4;EDGE=3;</PDATA5><DiagramID>30</DiagramID><ea_guid>{68CF6481-5725-49cb-A44A-91F7E89444CC}</ea_guid><SourceConstraint/><DestConstraint/><SourceIsNavigable>FALSE</SourceIsNavigable><DestIsNavigable>TRUE</DestIsNavigable><IsRoot>FALSE</IsRoot><IsLeaf>FALSE</IsLeaf><IsSpec>FALSE</IsSpec><SourceChangeable>none</SourceChangeable><DestChangeable>none</DestChangeable><SourceTS>instance</SourceTS><DestTS>instance</DestTS><StateFlags>IsReturn=false;</StateFlags><ActionFlags/><IsSignal>FALSE</IsSignal><IsStimulus>FALSE</IsStimulus><DispatchAction/><Target2>7078009</Target2><StyleEx/><SourceStereotype/><DestStereotype/><SourceStyle>Union=0;Derived=0;AllowDuplicates=0;Owned=0;Navigable=Non-Navigable;</SourceStyle><DestStyle>Union=0;Derived=0;AllowDuplicates=0;Owned=0;Navigable=Navigable;</DestStyle><EventFlags/></Row></Data></Dataset_0></EADATA>
+
+=== SQL t_diagramlinks (de este diagrama)
+<?xml version="1.0"?>
+
+<EADATA version="1.0" exporter="Enterprise Architect">
+
+	<Dataset_0><Data><Row><DiagramID>30</DiagramID><ConnectorID>762</ConnectorID><Geometry>SX=0;SY=31;EX=30;EY=31;EDGE=2;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;</Geometry><Style/><Hidden>FALSE</Hidden><Path/><Instance_ID>46</Instance_ID></Row><Row><DiagramID>30</DiagramID><ConnectorID>763</ConnectorID><Geometry>SX=0;SY=31;EX=30;EY=31;EDGE=2;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;</Geometry><Style/><Hidden>FALSE</Hidden><Path/><Instance_ID>47</Instance_ID></Row><Row><DiagramID>30</DiagramID><ConnectorID>764</ConnectorID><Geometry>SX=150;SY=12;EX=150;EY=-18;EDGE=3;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;</Geometry><Style/><Hidden>FALSE</Hidden><Path/><Instance_ID>48</Instance_ID></Row><Row><DiagramID>30</DiagramID><ConnectorID>765</ConnectorID><Geometry>SX=0;SY=31;EX=30;EY=31;EDGE=2;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;</Geometry><Style/><Hidden>FALSE</Hidden><Path/><Instance_ID>49</Instance_ID></Row><Row><DiagramID>30</DiagramID><ConnectorID>766</ConnectorID><Geometry>SX=0;SY=31;EX=30;EY=31;EDGE=2;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;</Geometry><Style/><Hidden>FALSE</Hidden><Path/><Instance_ID>50</Instance_ID></Row><Row><DiagramID>30</DiagramID><ConnectorID>767</ConnectorID><Geometry>SX=0;SY=-31;EX=-30;EY=-31;EDGE=4;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;</Geometry><Style/><Hidden>FALSE</Hidden><Path/><Instance_ID>51</Instance_ID></Row><Row><DiagramID>30</DiagramID><ConnectorID>768</ConnectorID><Geometry>SX=0;SY=55;EX=30;EY=55;EDGE=2;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;</Geometry><Style/><Hidden>FALSE</Hidden><Path/><Instance_ID>52</Instance_ID></Row><Row><DiagramID>30</DiagramID><ConnectorID>769</ConnectorID><Geometry>SX=0;SY=-31;EX=-30;EY=-31;EDGE=4;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;</Geometry><Style/><Hidden>FALSE</Hidden><Path/><Instance_ID>53</Instance_ID></Row><Row><DiagramID>30</DiagramID><ConnectorID>770</ConnectorID><Geometry>SX=-40;SY=12;EX=-40;EY=42;EDGE=1;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;</Geometry><Style/><Hidden>FALSE</Hidden><Path/><Instance_ID>54</Instance_ID></Row><Row><DiagramID>30</DiagramID><ConnectorID>771</ConnectorID><Geometry>SX=0;SY=-31;EX=-30;EY=-31;EDGE=4;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;</Geometry><Style/><Hidden>FALSE</Hidden><Path/><Instance_ID>55</Instance_ID></Row><Row><DiagramID>30</DiagramID><ConnectorID>772</ConnectorID><Geometry>SX=0;SY=-31;EX=-30;EY=-31;EDGE=4;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;</Geometry><Style/><Hidden>FALSE</Hidden><Path/><Instance_ID>56</Instance_ID></Row><Row><DiagramID>30</DiagramID><ConnectorID>758</ConnectorID><Geometry>EDGE=2;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;</Geometry><Style>Mode=3;EOID=BC4C86C5;SOID=E315C588;Color=-1;LWidth=0;</Style><Hidden>FALSE</Hidden><Path/><Instance_ID>57</Instance_ID></Row><Row><DiagramID>30</DiagramID><ConnectorID>759</ConnectorID><Geometry>SX=-2;SY=-1;EX=-2;EY=-1;EDGE=3;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;</Geometry><Style>Mode=3;EOID=788D2775;SOID=BC4C86C5;Color=-1;LWidth=0;</Style><Hidden>FALSE</Hidden><Path/><Instance_ID>58</Instance_ID></Row><Row><DiagramID>30</DiagramID><ConnectorID>760</ConnectorID><Geometry>EDGE=2;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;</Geometry><Style>Mode=3;EOID=36FE2979;SOID=788D2775;Color=-1;LWidth=0;</Style><Hidden>FALSE</Hidden><Path/><Instance_ID>59</Instance_ID></Row><Row><DiagramID>30</DiagramID><ConnectorID>761</ConnectorID><Geometry>EDGE=2;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;</Geometry><Style>Mode=3;EOID=986909C3;SOID=36FE2979;Color=-1;LWidth=0;</Style><Hidden>FALSE</Hidden><Path/><Instance_ID>60</Instance_ID></Row><Row><DiagramID>30</DiagramID><ConnectorID>757</ConnectorID><Geometry>EDGE=2;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;</Geometry><Style>Mode=3;EOID=E315C588;SOID=0381382E;Color=-1;LWidth=0;</Style><Hidden>FALSE</Hidden><Path/><Instance_ID>61</Instance_ID></Row><Row><DiagramID>30</DiagramID><ConnectorID>773</ConnectorID><Geometry>SX=-53;SY=4;EX=-23;EY=4;EDGE=3;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;</Geometry><Style>Mode=1;EOID=788D2775;SOID=BC4C86C5;Color=-1;LWidth=0;</Style><Hidden>FALSE</Hidden><Path/><Instance_ID>62</Instance_ID></Row><Row><DiagramID>30</DiagramID><ConnectorID>775</ConnectorID><Geometry>SX=0;SY=0;EX=0;EY=0;EDGE=0;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;</Geometry><Style>Mode=3;EOID=3A1879C6;SOID=1B17591F;Color=-1;LWidth=0;</Style><Hidden>FALSE</Hidden><Path/><Instance_ID>64</Instance_ID></Row></Data></Dataset_0></EADATA>
+
+=== Fin

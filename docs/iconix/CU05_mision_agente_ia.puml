@@ -1,0 +1,191 @@
+@startuml Secuencia_Mision_Agente_IA
+title Diagrama de Secuencia - CU05: Dar una misión a un agente de IA y aprobar sus propuestas
+
+hide footbox
+skinparam sequence {
+  ArrowColor #2C3E50
+  LifeLineBorderColor #2C6CA5
+  ParticipantBorderColor #2C6CA5
+  ParticipantBackgroundColor #E8F4FD
+  ActorBorderColor #2C3E50
+}
+
+actor "Administrador" as Adm
+boundary "Vista\n(Backoffice)" as Vista
+participant "Gateway\n(api-gw)" as GW
+control "AgentesRouter\n(MSIA)" as IA
+database "BD Agentes\n(SQLite)" as Sql
+participant "Automatización\n(n8n)" as N8n
+participant "Notificaciones\n(FCM)" as FCM
+participant "Notificaciones\n(Telegram)" as Tg
+participant "McpController\n(MSMenu)" as Mcp
+participant "ProveedoresController\n(MSPagos)" as Prov
+database "BD Menu\n(MongoDB)" as Mongo
+database "BD Pagos\n(PostgreSQL)" as PgPag
+
+== Endpoint 1: POST /agentes/{agente} ==
+
+Adm -> Vista : correr(agente)
+activate Vista
+Vista -> GW : POST /agentes/{agente}
+activate GW
+GW -> GW : requireAuth(token)
+GW -> IA : planif(mision) o inv(mision)
+activate IA
+IA -> IA : agente.run(objetivo)
+
+IA -> Mcp : ver_stock_bajo o crear_orden_compra_borrador
+activate Mcp
+Mcp -> Mongo : find({stockBajo: true})
+activate Mongo
+Mongo --> Mcp : insumos
+deactivate Mongo
+Mcp --> IA : insumos o líneas del borrador
+deactivate Mcp
+
+IA -> Mcp : lotes_por_vencer(dias)
+activate Mcp
+Mcp -> Mongo : find({vencimiento: {$lte: fecha}})
+activate Mongo
+Mongo --> Mcp : insumos
+deactivate Mongo
+Mcp --> IA : lotes por vencer
+deactivate Mcp
+
+IA -> IA : proponer_menu(r) o proponer_inventario(r)
+IA -> Sql : crear_si_no_hay_vigente(propuesta)
+activate Sql
+Sql --> IA : propuesta PENDIENTE
+deactivate Sql
+IA -> N8n : POST /webhook/notificar(push, titulo, cuerpo)
+activate N8n
+N8n -> FCM : messages:send(token, titulo, cuerpo)
+activate FCM
+FCM --> N8n : enviado
+deactivate FCM
+N8n --> IA : { ok: true }
+deactivate N8n
+IA -> Sql : encolar(resumen, propuestaId)
+activate Sql
+deactivate Sql
+IA -> N8n : POST /webhook/notificar(telegram, resumen)
+activate N8n
+N8n -> Tg : sendMessage(chat, resumen, botones aprobar / rechazar)
+activate Tg
+Tg --> N8n : enviado
+deactivate Tg
+N8n --> IA : { ok: true }
+deactivate N8n
+IA --> GW : { resultado, propuesta }
+deactivate IA
+GW --> Vista : 200 OK
+deactivate GW
+Vista --> Adm : avisa "Propuesta creada"
+deactivate Vista
+
+== Endpoint 2: GET /agentes/propuestas y GET /agentes/telegram ==
+
+Adm -> Vista : abrir panel de agentes
+activate Vista
+Vista -> Vista : refrescar()
+Vista -> GW : GET /agentes/propuestas
+activate GW
+GW -> GW : requireAuth(token)
+GW -> IA : listar_propuestas()
+activate IA
+IA -> Sql : listar(estado, limite)
+activate Sql
+Sql --> IA : propuestas
+deactivate Sql
+IA --> GW : propuestas
+deactivate IA
+GW --> Vista : 200 OK
+deactivate GW
+Vista -> GW : GET /agentes/telegram
+activate GW
+GW -> IA : telegram()
+activate IA
+IA -> IA : telegram_bot.estado()
+IA --> GW : estado de Telegram
+deactivate IA
+GW --> Vista : 200 OK
+deactivate GW
+Vista --> Adm : muestra las propuestas pendientes
+deactivate Vista
+
+== Endpoint 3: POST /agentes/propuestas/{id}/aprobar ==
+
+Adm -> Vista : resolver(propuesta, aprobar = true)
+activate Vista
+Vista -> GW : POST /agentes/propuestas/{id}/aprobar
+activate GW
+GW -> GW : requireAuth(token)
+GW -> IA : aprobar(id)
+activate IA
+IA -> IA : decidir_desde_panel(id, aprobar)
+IA -> IA : propuestas.resolver(id, aprobar)
+IA -> Sql : tomar_pendiente(id, EJECUTANDO)
+activate Sql
+Sql --> IA : ok
+deactivate Sql
+
+alt propuesta de menú
+  IA -> IA : _ejecutar_menu(payload)
+  IA -> Mcp : consultar_menu(turno)
+  activate Mcp
+  Mcp -> Mongo : find({fecha: {$gte: inicio}, turno})
+  activate Mongo
+  Mongo --> Mcp : menus
+  deactivate Mongo
+  Mcp --> IA : menús existentes
+  deactivate Mcp
+  IA -> Mcp : publicar_menu(fecha, turno, platos)
+  activate Mcp
+  Mcp -> Mcp : ArmarMenuSemanalUseCase.ejecutar(entrada)
+  Mcp -> Mongo : insertOne(menu)
+  activate Mongo
+  Mongo --> Mcp : menu
+  deactivate Mongo
+  Mcp --> IA : menuDto
+  deactivate Mcp
+else propuesta de compra
+  IA -> IA : _ejecutar_compra(payload, id)
+  IA -> N8n : POST /webhook/orden-aprobada(ordenId, proveedores)
+  activate N8n
+  N8n -> Prov : POST /proveedores/pagos(ordenId, proveedor, monto, detalle)
+  activate Prov
+  Prov -> PgPag : guardarSiNoExiste(obligacion)
+  activate PgPag
+  PgPag --> Prov : obligacion PENDIENTE
+  deactivate PgPag
+  Prov --> N8n : 201 Created
+  deactivate Prov
+  N8n --> IA : { ok: true, registradas }
+  deactivate N8n
+  IA -> Sql : encolar(orden aprobada por proveedor)
+  activate Sql
+  deactivate Sql
+end
+
+IA -> Sql : cerrar(id, EJECUTADA)
+activate Sql
+deactivate Sql
+IA -> Sql : encolar(resultado)
+activate Sql
+deactivate Sql
+IA -> N8n : POST /webhook/notificar(telegram, resultado)
+activate N8n
+N8n -> Tg : sendMessage(chat, resultado)
+activate Tg
+Tg --> N8n : enviado
+deactivate Tg
+N8n --> IA : { ok: true }
+deactivate N8n
+IA --> GW : { estado: EJECUTADA, resultado }
+deactivate IA
+GW --> Vista : 200 OK
+deactivate GW
+Vista --> Adm : muestra la propuesta ejecutada
+deactivate Vista
+
+@enduml
