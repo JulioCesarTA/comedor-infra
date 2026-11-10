@@ -229,9 +229,13 @@ def generar_menus_y_reservas(est_ids: list[str], becarios: set[str], real_temp: 
                         tickets.append((tid, pid_pago, rid, f"{monto:.2f}", emitido.isoformat()))
             menus.append(dict(_id=f"hist-{d:%Y%m%d}-{turno[0]}", fecha=d.isoformat(), turno=turno, publicado=True, porciones=porciones))
         d += timedelta(days=1)
-    # próxima semana publicada (sin reservas) para que el portal y el planificador tengan menús futuros
-    d = date(2026, 11, 9)
-    while d <= date(2026, 11, 14):
+    # próximos 6 días publicados (sin reservas) para que el portal y el planificador tengan menús futuros.
+    # Siempre desde MAÑANA: un menú futuro con 0 reservas que quede en el pasado entra al entrenamiento como "nadie vino".
+    d = max(HOY, FIN_HIST) + timedelta(days=1)
+    fin_futuro = d + timedelta(days=5)
+    while d <= fin_futuro:
+        if d.weekday() == 6:
+            d += timedelta(days=1); continue
         for turno, cfg in TURNOS.items():
             pl = cfg["platos"]
             elegidos = rng.choice(len(pl), size=min(cfg["n"], len(pl)), replace=False)
