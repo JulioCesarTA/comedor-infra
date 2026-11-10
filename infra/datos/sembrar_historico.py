@@ -1,17 +1,24 @@
 #!/usr/bin/env python3
-"""Siembra 3 años de historial de demostración (menús, reservas, pagos, estudiantes y becas) en las 3 nubes.
+"""Siembra historial de demostración (menús, reservas, pagos, estudiantes y becas) en las 3 nubes.
 
-Qué crea (todo es AGREGADO, no borra ni modifica lo que ya existe):
+Qué crea (todo es AGREGADO; con --rehacer primero borra lo sembrado antes):
   - Mongo  (AWS EKS)   : menús 'hist-AAAAMMDD-T' con cupo y porciones apartadas   -> colección menus
   - Postgres (Azure)   : estudiantes (registro 23xxxxx), becas, reservas           -> menuId empieza con 'hist-'
   - Postgres (GCP)     : pagos y tickets de esas reservas                          -> reserva_id = id de la reserva sembrada
+
+Tamaño (pensado para el modelo de demanda, que pide 2.000 registros fecha × turno × plato):
+  - 22 meses de menús (1/1/2025 → 31/10/2026): ~2.100 registros, con la escala real del comedor
+    (cupo 120 desayuno / 180 almuerzo / 120 cena, demanda típica 50-150 raciones por plato).
+  - Reservas, pagos y tickets fila por fila SOLO de los últimos 60 días del historial (~17 mil filas).
+    El modelo entrena con las porciones apartadas de los menús, no con las reservas; sembrar las reservas de
+    los 22 meses serían ~180 mil filas y los reportes (que bajan todas las reservas) dejarían de servir.
 La demanda tiene patrón real (día de la semana, turno, popularidad del plato, feriados, exámenes, vacaciones, temperatura
 y tendencia) para que los modelos tengan algo que aprender.
 
 Uso (Git Bash, desde comedor-infra):
-    python infra/datos/sembrar_historico.py --seco      # solo genera y muestra conteos
-    python infra/datos/sembrar_historico.py             # genera y carga en las 3 nubes
-Para deshacerlo (a mano): ver el bloque "DESHACER" al final de este archivo.
+    python infra/datos/sembrar_historico.py --seco       # solo genera y muestra conteos (no toca ninguna nube)
+    python infra/datos/sembrar_historico.py              # genera y carga en las 3 nubes (falla si ya hay datos sembrados)
+    python infra/datos/sembrar_historico.py --rehacer    # borra lo sembrado antes ('hist-', registro 23xxxxx) y vuelve a cargar
 """
 import argparse
 import csv
@@ -32,13 +39,21 @@ RAIZ = Path(__file__).resolve().parents[2]            # comedor-infra
 REPOS = RAIZ.parent
 HOY = date.today()
 FIN_HIST = date(2026, 10, 31)                         # lo que ya existía en las bases empieza el 2/11/2026
-INICIO = FIN_HIST - timedelta(days=365 * 3 - 1)
+INICIO = date(2025, 1, 1)                             # 22 meses -> ~2.100 registros fecha × turno × plato
+DIAS_CON_RESERVAS = 60                                # solo estos últimos días llevan reservas/pagos fila por fila
+DESDE_RESERVAS = FIN_HIST - timedelta(days=DIAS_CON_RESERVAS - 1)
+ESTUDIANTES_NUEVOS = 400                              # alcanza para llenar un cupo de 180 sin repetir estudiante
 rng = np.random.default_rng(42)
 
 # ---------------------------------------------------------------- calendario (el mismo que usa el modelo)
-_spec = importlib.util.spec_from_file_location("calendario", REPOS / "ia-ml-service/app/services/analitica/calendario.py")
+_spec = importlib.util.spec_from_file_location("calendario", REPOS / "ia-ml-service/app/domain/analitica/calendario.py")
 cal = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(cal)
+
+
+def en_periodo(d: date, periodos) -> bool:
+    return any(a <= d <= b for a, b in periodos)
+
 
 # ---------------------------------------------------------------- platos: (id, popularidad, es_sopa)
 ALMUERZO = [("arroz-con-pollo", 1.35, 0), ("asado-de-res", 1.25, 0), ("majadito", 1.15, 0), ("milanesa", 1.20, 0),
@@ -46,10 +61,10 @@ ALMUERZO = [("arroz-con-pollo", 1.35, 0), ("asado-de-res", 1.25, 0), ("majadito"
             ("tallarin-con-carne", 0.80, 0), ("chicharron", 0.75, 0), ("locro", 0.65, 1), ("sopa-de-mani", 0.55, 1)]
 DESAYUNO = [("api-con-pastel", 1.25, 1), ("pan-con-leche", 1.0, 0), ("sonso", 0.8, 0), ("cunape-con-api", 0.7, 1)]
 CENA = [("sopa-de-fideo", 1.0, 1), ("arroz-con-queso", 1.1, 0), ("tortilla-de-papa", 0.85, 0), ("pollo-frito", 1.25, 0)]
-TURNOS = {  # base de demanda por plato, cupo, precio, hora UTC del cobro
-    "DESAYUNO": dict(platos=DESAYUNO, n=1, base=5.0, cupo=9, precio=6.0, hora=11),
-    "ALMUERZO": dict(platos=ALMUERZO, n=2, base=8.0, cupo=14, precio=12.0, hora=16),
-    "CENA": dict(platos=CENA, n=1, base=4.0, cupo=8, precio=10.0, hora=23),
+TURNOS = {  # demanda base por plato (raciones), cupo por plato, precio Bs, hora UTC del cobro
+    "DESAYUNO": dict(platos=DESAYUNO, n=1, base=70.0, cupo=120, precio=6.0, hora=11),
+    "ALMUERZO": dict(platos=ALMUERZO, n=2, base=95.0, cupo=180, precio=12.0, hora=16),
+    "CENA": dict(platos=CENA, n=1, base=60.0, cupo=120, precio=10.0, hora=23),
 }
 FACTOR_DIA = (1.20, 1.20, 1.10, 1.00, 0.80, 0.45)    # lun..sáb
 
@@ -111,6 +126,14 @@ def psql(kube, deploy, usuario, bd, sql=None, copia=None):
     return correr(cmd, entrada=copia.encode("utf-8") if copia else None, env=env)
 
 
+def mongosh(kube, js: str) -> str:
+    e = env_archivo(".env")
+    base, env = kube
+    return correr(base + ["exec", "-i", "deploy/mongo", "--", "mongosh", "--quiet", "-u", e["MONGO_INITDB_ROOT_USERNAME"], "-p",
+                          e["MONGO_INITDB_ROOT_PASSWORD"], "--authenticationDatabase", "admin", e.get("MONGO_DB_MENU", "menu_inventario")],
+                  entrada=js.encode("utf-8"), env=env)
+
+
 # ---------------------------------------------------------------- temperatura real de Santa Cruz (con internet) o estacional
 def temperaturas() -> dict[str, float]:
     try:
@@ -133,10 +156,10 @@ def temp_de(d: date, real: dict) -> float:
 
 
 # ---------------------------------------------------------------- generación
-def generar(real_temp: dict):
-    # estudiantes nuevos (repartidos: ~25% becarios)
+def generar_estudiantes():
+    """Estudiantes nuevos (registro 23xxxxx); ~25 % becarios."""
     nuevos, becas = [], []
-    for i in range(1, 151):
+    for i in range(1, ESTUDIANTES_NUEVOS + 1):
         reg = f"23{i:05d}"
         nom = f"{NOMBRES[(i * 7) % len(NOMBRES)]} {APELLIDOS[(i * 11) % len(APELLIDOS)]} {APELLIDOS[(i * 5 + 3) % len(APELLIDOS)]}"
         nuevos.append(dict(id=str(uuid.uuid4()), reg=reg, nombre=nom, email=f"{reg}@uagrm.edu.bo", tel=f"+591 7{rng.integers(1000000, 9999999)}"))
@@ -144,7 +167,7 @@ def generar(real_temp: dict):
     for n in nuevos[::4]:
         tipo, cupo = [("completa", 60), ("media", 40), ("parcial", 20)][int(rng.integers(0, 3))]
         becas.append(dict(id=str(uuid.uuid4()), est=n["id"], tipo=tipo, cupo=cupo, usadas=int(rng.integers(0, 4)),
-                          desde="2023-11-01 00:00:00", hasta="2026-12-31 23:59:59"))
+                          desde="2025-01-01 00:00:00", hasta="2026-12-31 23:59:59"))
     return nuevos, becas, becarios
 
 
@@ -158,10 +181,11 @@ def generar_menus_y_reservas(est_ids: list[str], becarios: set[str], real_temp: 
     while d <= FIN_HIST:
         if d.weekday() == 6 or d in cal.FERIADOS:
             d += timedelta(days=1); continue
-        vacacion = cal.en_periodo(d, cal.PERIODOS_VACACIONES)
-        examenes = cal.en_periodo(d, cal.PERIODOS_EXAMENES)
-        tendencia = 0.78 + 0.34 * ((d - INICIO).days / dias_total)             # el comedor crece con los años
+        vacacion = en_periodo(d, cal.PERIODOS_VACACIONES)
+        examenes = en_periodo(d, cal.PERIODOS_EXAMENES)
+        tendencia = 0.85 + 0.25 * ((d - INICIO).days / dias_total)             # el comedor crece con el tiempo
         temp = temp_de(d, real_temp)
+        con_reservas = d >= DESDE_RESERVAS
         for turno, cfg in TURNOS.items():
             if vacacion and turno == "CENA":
                 continue
@@ -180,6 +204,8 @@ def generar_menus_y_reservas(est_ids: list[str], becarios: set[str], real_temp: 
                        * (0.40 if vacacion else 1.0) * (1.25 if examenes else 1.0) * float(rng.lognormal(0, 0.12)))
                 apartadas = int(min(cfg["cupo"], rng.poisson(lam)))
                 porciones[f"plato-{pid}"] = dict(platoId=f"plato-{pid}", cupoTotal=cfg["cupo"], apartadas=apartadas)
+                if not con_reservas:
+                    continue
                 # reservas: `apartadas` vigentes (consumidas o no vino) + ~12% canceladas (ya liberadas)
                 n_canc = int(rng.binomial(max(apartadas, 1), 0.12)) if apartadas else 0
                 n_total = apartadas + n_canc
@@ -221,45 +247,72 @@ def csv_texto(filas) -> str:
     return b.getvalue()
 
 
+def resumen(menus, reservas, pagos, tickets, nuevos, becas, existentes=0):
+    pasadas = [p for m in menus if m["fecha"] <= FIN_HIST.isoformat() for p in m["porciones"].values()]
+    ap = np.array([p["apartadas"] for p in pasadas])
+    cupos = np.array([p["cupoTotal"] for p in pasadas])
+    print(f"  estudiantes nuevos {len(nuevos)} (+{existentes} existentes) · becas {len(becas)}")
+    print(f"  menús {len(menus)} · registros fecha×turno×plato pasados {len(pasadas)} (el modelo pide 2.000)")
+    print(f"  apartadas por plato: media {ap.mean():.0f} · mediana {np.median(ap):.0f} · máx {ap.max()} · "
+          f"ocupación media {100 * ap.sum() / cupos.sum():.0f} % · agotados {int((ap == cupos).sum())}")
+    print(f"  reservas {len(reservas)} (desde {DESDE_RESERVAS}) · pagos {len(pagos)} · tickets {len(tickets)}")
+
+
+# ---------------------------------------------------------------- borrar lo sembrado antes
+def deshacer(aws, azure, gcp, dbu, gu):
+    print("Borrando lo sembrado antes…")
+    print("  Mongo:", mongosh(aws, "const r=db.menus.deleteMany({_id:/^hist-/});print('menús borrados '+r.deletedCount)").strip().splitlines()[-1])
+    print("  Azure reservas:", psql(azure, "postgres-comensales", dbu, "comensales_reservas",
+                                    "delete from reservas where \"menuId\" like 'hist-%'").strip())
+    print("  Azure becas:", psql(azure, "postgres-comensales", dbu, "comensales_reservas",
+                                 "delete from becas where \"estudianteId\" in (select id from estudiantes where \"registroUniv\" like '23%')").strip())
+    print("  Azure estudiantes:", psql(azure, "postgres-comensales", dbu, "comensales_reservas",
+                                       "delete from estudiantes where \"registroUniv\" like '23%'").strip())
+    # Lo real en pagos empieza el 2/11/2026: todo lo anterior es sembrado
+    print("  GCP tickets:", psql(gcp, "postgres-pagos", gu, "pagos_tickets",
+                                 "delete from tickets where pago_id in (select id from pagos where created_at < '2026-11-01')").strip())
+    print("  GCP pagos:", psql(gcp, "postgres-pagos", gu, "pagos_tickets", "delete from pagos where created_at < '2026-11-01'").strip())
+
+
 # ---------------------------------------------------------------- carga
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--seco", action="store_true", help="solo genera y muestra conteos")
+    ap.add_argument("--seco", action="store_true", help="solo genera y muestra conteos (no toca ninguna nube)")
+    ap.add_argument("--rehacer", action="store_true", help="borra lo sembrado antes y vuelve a cargar")
     args = ap.parse_args()
 
     print("Generando…")
     real = temperaturas()
-    nuevos, becas, becarios = generar(real)
+    nuevos, becas, becarios = generar_estudiantes()
 
-    aws, azure = kube_aws(), kube_azure()
-    dbu, dbp = secreto(azure, "comensales-secretos", "db-user"), None
+    if args.seco:
+        menus, reservas, pagos, tickets = generar_menus_y_reservas([n["id"] for n in nuevos], becarios, real)
+        resumen(menus, reservas, pagos, tickets, nuevos, becas)
+        return
+
+    aws, azure, gcp = kube_aws(), kube_azure(), kube_gcp()
+    dbu = secreto(azure, "comensales-secretos", "db-user")
+    gu = secreto(gcp, "pagos-secretos", "db-user")
     ya = psql(azure, "postgres-comensales", dbu, "comensales_reservas", "select count(*) from reservas where \"menuId\" like 'hist-%'").strip()
-    if ya != "0" and not args.seco:
-        sys.exit(f"Ya hay {ya} reservas sembradas ('hist-'). No se vuelve a sembrar (para rehacer, bórralas antes: ver DESHACER).")
+    if ya != "0":
+        if not args.rehacer:
+            sys.exit(f"Ya hay {ya} reservas sembradas ('hist-'). Para reemplazarlas corre con --rehacer.")
+        deshacer(aws, azure, gcp, dbu, gu)
+
     existentes = [l.strip() for l in psql(azure, "postgres-comensales", dbu, "comensales_reservas", "select id from estudiantes").splitlines() if l.strip()]
     est_ids = existentes + [n["id"] for n in nuevos]
-
     menus, reservas, pagos, tickets = generar_menus_y_reservas(est_ids, becarios, real)
-    filas_menu = sum(len(m["porciones"]) for m in menus)
-    print(f"  estudiantes nuevos {len(nuevos)} (+{len(existentes)} existentes) · becas {len(becas)}")
-    print(f"  menús {len(menus)} ({filas_menu} registros fecha×turno×plato) · reservas {len(reservas)} · pagos {len(pagos)} · tickets {len(tickets)}")
-    if args.seco:
-        return
+    resumen(menus, reservas, pagos, tickets, nuevos, becas, len(existentes))
 
     # ---- Mongo (AWS)
     print("Cargando menús en Mongo (AWS)…")
-    e = env_archivo(".env")
-    base, env = aws
     for i in range(0, len(menus), 400):
         docs = []
         for m in menus[i:i + 400]:
             docs.append(dict(_id=m["_id"], fecha={"$date": m["fecha"] + "T00:00:00Z"}, turno=m["turno"], publicado=True,
                              porciones=m["porciones"], _class="com.uagrm.comedor.menu.domain.model.Menu"))
         js = "const L=" + json.dumps(docs) + ";L.forEach(d=>{d.fecha=new Date(d.fecha.$date)});db.menus.insertMany(L);print('ok '+L.length)"
-        out = correr(base + ["exec", "-i", "deploy/mongo", "--", "mongosh", "--quiet", "-u", e["MONGO_INITDB_ROOT_USERNAME"], "-p",
-                             e["MONGO_INITDB_ROOT_PASSWORD"], "--authenticationDatabase", "admin", e.get("MONGO_DB_MENU", "menu_inventario")],
-                     entrada=js.encode("utf-8"), env=env)
-        print("  ", out.strip().splitlines()[-1])
+        print("  ", mongosh(aws, js).strip().splitlines()[-1])
 
     # ---- Postgres Azure
     print("Cargando estudiantes, becas y reservas en Postgres (Azure)…")
@@ -274,8 +327,6 @@ def main():
 
     # ---- Postgres GCP
     print("Cargando pagos y tickets en Postgres (GCP)…")
-    gcp = kube_gcp()
-    gu = secreto(gcp, "pagos-secretos", "db-user")
     psql(gcp, "postgres-pagos", gu, "pagos_tickets",
          "\\copy pagos (id,reserva_id,estudiante_id,monto,metodo,estado,ticket_id,created_at) from stdin csv", csv_texto(pagos))
     psql(gcp, "postgres-pagos", gu, "pagos_tickets",
@@ -286,10 +337,10 @@ def main():
 if __name__ == "__main__":
     main()
 
-# DESHACER (a mano, solo lo sembrado):
+# DESHACER a mano (es lo mismo que hace --rehacer antes de cargar):
 #   Mongo   : db.menus.deleteMany({_id: /^hist-/})
 #   Azure   : delete from reservas where "menuId" like 'hist-%';
 #             delete from becas where "estudianteId" in (select id from estudiantes where "registroUniv" like '23%');
 #             delete from estudiantes where "registroUniv" like '23%';
-#   GCP     : delete from tickets where reserva_id in (select id from pagos where ...)  -> más simple: las reservas sembradas se
-#             reconocen por created_at < '2026-11-01': delete from tickets where emitido_en < '2026-11-01'; delete from pagos where created_at < '2026-11-01';
+#   GCP     : delete from tickets where pago_id in (select id from pagos where created_at < '2026-11-01');
+#             delete from pagos where created_at < '2026-11-01';
