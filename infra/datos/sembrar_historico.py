@@ -7,11 +7,15 @@ Qué crea (todo es AGREGADO; con --rehacer primero borra lo sembrado antes):
   - Postgres (GCP)     : pagos y tickets de esas reservas                          -> reserva_id = id de la reserva sembrada
 
 Tamaño (pensado para el modelo de demanda, que pide 2.000 registros fecha × turno × plato):
-  - 22 meses de menús (1/1/2025 → 31/10/2026): ~2.100 registros, con la escala real del comedor
-    (cupo 120 desayuno / 180 almuerzo / 120 cena, demanda típica 50-150 raciones por plato).
-  - Reservas, pagos y tickets fila por fila SOLO de los últimos 60 días del historial (~17 mil filas).
+  - Menús desde el 1/1/2025 hasta AYER: ~2.100 registros, con la escala real del comedor
+    (cupo 100 desayuno / 150 almuerzo / 90 cena, demanda típica 40-150 raciones por plato, ocupación ~60 %).
+    Llega hasta ayer para que los KPI de "últimos 7/14 días" tengan datos de verdad; convive con lo que se
+    cargue a mano (los menús sembrados se reconocen por el id 'hist-').
+  - Reservas, pagos y tickets fila por fila SOLO de los últimos 60 días del historial (~19 mil filas).
     El modelo entrena con las porciones apartadas de los menús, no con las reservas; sembrar las reservas de
     los 22 meses serían ~180 mil filas y los reportes (que bajan todas las reservas) dejarían de servir.
+  - Lo sembrado se reconoce para poder borrarlo: menús 'hist-*', reservas con menuId 'hist-*', estudiantes con
+    registro 23xxxxx y pagos con referencia_pasarela = 'hist'.
 La demanda tiene patrón real (día de la semana, turno, popularidad del plato, feriados, exámenes, vacaciones, temperatura
 y tendencia) para que los modelos tengan algo que aprender.
 
@@ -38,8 +42,8 @@ import numpy as np
 RAIZ = Path(__file__).resolve().parents[2]            # comedor-infra
 REPOS = RAIZ.parent
 HOY = date.today()
-FIN_HIST = date(2026, 10, 31)                         # lo que ya existía en las bases empieza el 2/11/2026
-INICIO = date(2025, 1, 1)                             # 22 meses -> ~2.100 registros fecha × turno × plato
+FIN_HIST = HOY - timedelta(days=1)                    # hasta ayer: los KPI miran los últimos 7/14 días
+INICIO = date(2025, 1, 1)                             # ~22 meses -> ~2.100 registros fecha × turno × plato
 DIAS_CON_RESERVAS = 60                                # solo estos últimos días llevan reservas/pagos fila por fila
 DESDE_RESERVAS = FIN_HIST - timedelta(days=DIAS_CON_RESERVAS - 1)
 ESTUDIANTES_NUEVOS = 400                              # alcanza para llenar un cupo de 180 sin repetir estudiante
@@ -62,9 +66,9 @@ ALMUERZO = [("arroz-con-pollo", 1.35, 0), ("asado-de-res", 1.25, 0), ("majadito"
 DESAYUNO = [("api-con-pastel", 1.25, 1), ("pan-con-leche", 1.0, 0), ("sonso", 0.8, 0), ("cunape-con-api", 0.7, 1)]
 CENA = [("sopa-de-fideo", 1.0, 1), ("arroz-con-queso", 1.1, 0), ("tortilla-de-papa", 0.85, 0), ("pollo-frito", 1.25, 0)]
 TURNOS = {  # demanda base por plato (raciones), cupo por plato, precio Bs, hora UTC del cobro
-    "DESAYUNO": dict(platos=DESAYUNO, n=1, base=70.0, cupo=120, precio=6.0, hora=11),
-    "ALMUERZO": dict(platos=ALMUERZO, n=2, base=95.0, cupo=180, precio=12.0, hora=16),
-    "CENA": dict(platos=CENA, n=1, base=60.0, cupo=120, precio=10.0, hora=23),
+    "DESAYUNO": dict(platos=DESAYUNO, n=1, base=70.0, cupo=100, precio=6.0, hora=11),
+    "ALMUERZO": dict(platos=ALMUERZO, n=2, base=95.0, cupo=150, precio=12.0, hora=16),
+    "CENA": dict(platos=CENA, n=1, base=60.0, cupo=90, precio=10.0, hora=23),
 }
 FACTOR_DIA = (1.20, 1.20, 1.10, 1.00, 0.80, 0.45)    # lun..sáb
 
@@ -161,20 +165,24 @@ def generar_estudiantes():
     nuevos, becas = [], []
     for i in range(1, ESTUDIANTES_NUEVOS + 1):
         reg = f"23{i:05d}"
-        nom = f"{NOMBRES[(i * 7) % len(NOMBRES)]} {APELLIDOS[(i * 11) % len(APELLIDOS)]} {APELLIDOS[(i * 5 + 3) % len(APELLIDOS)]}"
+        # nombre + apellido + apellido sin repetir combinaciones (24 x 24 x 24 posibles)
+        nom = f"{NOMBRES[i % len(NOMBRES)]} {APELLIDOS[(i // len(NOMBRES)) % len(APELLIDOS)]} {APELLIDOS[(i * 7 + 3) % len(APELLIDOS)]}"
         nuevos.append(dict(id=str(uuid.uuid4()), reg=reg, nombre=nom, email=f"{reg}@uagrm.edu.bo", tel=f"+591 7{rng.integers(1000000, 9999999)}"))
     becarios = {n["id"] for n in nuevos[::4]}
     for n in nuevos[::4]:
         tipo, cupo = [("completa", 60), ("media", 40), ("parcial", 20)][int(rng.integers(0, 3))]
-        becas.append(dict(id=str(uuid.uuid4()), est=n["id"], tipo=tipo, cupo=cupo, usadas=int(rng.integers(0, 4)),
+        # `usadas` se completa después con las raciones pagadas con beca este mes (ver generar_menus_y_reservas)
+        becas.append(dict(id=str(uuid.uuid4()), est=n["id"], tipo=tipo, cupo=cupo, usadas=0,
                           desde="2025-01-01 00:00:00", hasta="2026-12-31 23:59:59"))
     return nuevos, becas, becarios
 
 
 def generar_menus_y_reservas(est_ids: list[str], becarios: set[str], real_temp: dict):
+    """Devuelve menus, reservas, pagos, tickets y {estudianteId: raciones pagadas con beca este mes}."""
     peso = rng.lognormal(0, 0.9, len(est_ids))
     peso /= peso.sum()
     menus, reservas, pagos, tickets = [], [], [], []
+    usadas_beca: dict[str, int] = {}
     dias_total = (FIN_HIST - INICIO).days
     ultimo = {}
     d = INICIO
@@ -223,9 +231,11 @@ def generar_menus_y_reservas(est_ids: list[str], becarios: set[str], real_temp: 
                             continue                                           # canceló antes de pagar
                         metodo = "beca" if (est_ids[e] in becarios and rng.random() < 0.9) else ("efectivo" if rng.random() < 0.4 else "qr_bancario")
                         monto = 0.0 if metodo == "beca" else cfg["precio"]
+                        if metodo == "beca" and not cancelada and (d.year, d.month) == (FIN_HIST.year, FIN_HIST.month):
+                            usadas_beca[est_ids[e]] = usadas_beca.get(est_ids[e], 0) + 1
                         pid_pago, tid = str(uuid.uuid4()), str(uuid.uuid4())
                         emitido = datetime(d.year, d.month, d.day, cfg["hora"], int(rng.integers(0, 59)), int(rng.integers(0, 59))).replace(tzinfo=timezone.utc)
-                        pagos.append((pid_pago, rid, est_ids[e], f"{monto:.2f}", metodo, "devuelto" if cancelada else "cobrado", tid, emitido.isoformat()))
+                        pagos.append((pid_pago, rid, est_ids[e], f"{monto:.2f}", metodo, "devuelto" if cancelada else "cobrado", tid, emitido.isoformat(), "hist"))
                         tickets.append((tid, pid_pago, rid, f"{monto:.2f}", emitido.isoformat()))
             menus.append(dict(_id=f"hist-{d:%Y%m%d}-{turno[0]}", fecha=d.isoformat(), turno=turno, publicado=True, porciones=porciones))
         d += timedelta(days=1)
@@ -242,7 +252,7 @@ def generar_menus_y_reservas(est_ids: list[str], becarios: set[str], real_temp: 
             menus.append(dict(_id=f"hist-{d:%Y%m%d}-{turno[0]}", fecha=d.isoformat(), turno=turno, publicado=True,
                               porciones={f"plato-{pl[i][0]}": dict(platoId=f"plato-{pl[i][0]}", cupoTotal=cfg["cupo"], apartadas=0) for i in elegidos}))
         d += timedelta(days=1)
-    return menus, reservas, pagos, tickets
+    return menus, reservas, pagos, tickets, usadas_beca
 
 
 def csv_texto(filas) -> str:
@@ -255,8 +265,10 @@ def resumen(menus, reservas, pagos, tickets, nuevos, becas, existentes=0):
     pasadas = [p for m in menus if m["fecha"] <= FIN_HIST.isoformat() for p in m["porciones"].values()]
     ap = np.array([p["apartadas"] for p in pasadas])
     cupos = np.array([p["cupoTotal"] for p in pasadas])
-    print(f"  estudiantes nuevos {len(nuevos)} (+{existentes} existentes) · becas {len(becas)}")
-    print(f"  menús {len(menus)} · registros fecha×turno×plato pasados {len(pasadas)} (el modelo pide 2.000)")
+    usadas = [b["usadas"] for b in becas]
+    print(f"  estudiantes nuevos {len(nuevos)} (+{existentes} existentes) · becas {len(becas)} "
+          f"(raciones usadas este mes: media {np.mean(usadas):.1f}, máx {max(usadas)})")
+    print(f"  menús {len(menus)} ({INICIO} a {FIN_HIST}) · registros fecha×turno×plato pasados {len(pasadas)} (el modelo pide 2.000)")
     print(f"  apartadas por plato: media {ap.mean():.0f} · mediana {np.median(ap):.0f} · máx {ap.max()} · "
           f"ocupación media {100 * ap.sum() / cupos.sum():.0f} % · agotados {int((ap == cupos).sum())}")
     print(f"  reservas {len(reservas)} (desde {DESDE_RESERVAS}) · pagos {len(pagos)} · tickets {len(tickets)}")
@@ -272,10 +284,11 @@ def deshacer(aws, azure, gcp, dbu, gu):
                                  "delete from becas where \"estudianteId\" in (select id::text from estudiantes where \"registroUniv\" like '23%')").strip())
     print("  Azure estudiantes:", psql(azure, "postgres-comensales", dbu, "comensales_reservas",
                                        "delete from estudiantes where \"registroUniv\" like '23%'").strip())
-    # Lo real en pagos empieza el 2/11/2026: todo lo anterior es sembrado
+    # Pagos sembrados: referencia_pasarela = 'hist' (y los de siembras viejas, anteriores al 1/11/2026, sin marca)
+    SEMBRADOS = "referencia_pasarela = 'hist' or created_at < '2026-11-01'"
     print("  GCP tickets:", psql(gcp, "postgres-pagos", gu, "pagos_tickets",
-                                 "delete from tickets where pago_id in (select id from pagos where created_at < '2026-11-01')").strip())
-    print("  GCP pagos:", psql(gcp, "postgres-pagos", gu, "pagos_tickets", "delete from pagos where created_at < '2026-11-01'").strip())
+                                 f"delete from tickets where pago_id in (select id from pagos where {SEMBRADOS})").strip())
+    print("  GCP pagos:", psql(gcp, "postgres-pagos", gu, "pagos_tickets", f"delete from pagos where {SEMBRADOS}").strip())
 
 
 # ---------------------------------------------------------------- carga
@@ -290,7 +303,9 @@ def main():
     nuevos, becas, becarios = generar_estudiantes()
 
     if args.seco:
-        menus, reservas, pagos, tickets = generar_menus_y_reservas([n["id"] for n in nuevos], becarios, real)
+        menus, reservas, pagos, tickets, usadas = generar_menus_y_reservas([n["id"] for n in nuevos], becarios, real)
+        for b in becas:
+            b["usadas"] = min(b["cupo"], usadas.get(b["est"], 0))
         resumen(menus, reservas, pagos, tickets, nuevos, becas)
         return
 
@@ -306,7 +321,9 @@ def main():
 
     existentes = [l.strip() for l in psql(azure, "postgres-comensales", dbu, "comensales_reservas", "select id from estudiantes").splitlines() if l.strip()]
     est_ids = existentes + [n["id"] for n in nuevos]
-    menus, reservas, pagos, tickets = generar_menus_y_reservas(est_ids, becarios, real)
+    menus, reservas, pagos, tickets, usadas = generar_menus_y_reservas(est_ids, becarios, real)
+    for b in becas:
+        b["usadas"] = min(b["cupo"], usadas.get(b["est"], 0))
     resumen(menus, reservas, pagos, tickets, nuevos, becas, len(existentes))
 
     # ---- Mongo (AWS)
@@ -333,7 +350,7 @@ def main():
     # ---- Postgres GCP
     print("Cargando pagos y tickets en Postgres (GCP)…")
     psql(gcp, "postgres-pagos", gu, "pagos_tickets",
-         "\\copy pagos (id,reserva_id,estudiante_id,monto,metodo,estado,ticket_id,created_at) from stdin csv", csv_texto(pagos))
+         "\\copy pagos (id,reserva_id,estudiante_id,monto,metodo,estado,ticket_id,created_at,referencia_pasarela) from stdin csv", csv_texto(pagos))
     psql(gcp, "postgres-pagos", gu, "pagos_tickets",
          "\\copy tickets (id,pago_id,reserva_id,monto,emitido_en) from stdin csv", csv_texto(tickets))
     print("Listo.")
@@ -347,5 +364,5 @@ if __name__ == "__main__":
 #   Azure   : delete from reservas where "menuId" like 'hist-%';
 #             delete from becas where "estudianteId" in (select id::text from estudiantes where "registroUniv" like '23%');
 #             delete from estudiantes where "registroUniv" like '23%';
-#   GCP     : delete from tickets where pago_id in (select id from pagos where created_at < '2026-11-01');
-#             delete from pagos where created_at < '2026-11-01';
+#   GCP     : delete from tickets where pago_id in (select id from pagos where referencia_pasarela = 'hist');
+#             delete from pagos where referencia_pasarela = 'hist';
