@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Despliega la parte AWS del sistema en el clúster EKS "comedor" (ya creado con eksctl y con nodos).
-# Requiere: .env, .env.secrets, .env.cloud.nuevo (EKS_EDGE_IP, EKS_EIP_ALLOC), respaldo/ datos.
+# Requiere: .env, .env.secrets, .env.cloud.nuevo (EKS_EDGE_IP, EKS_EIP_ALLOC, COMENSALES_IP, PAGOS_IP,
+# COMENSALES_IP_SALIDA, PAGOS_IP_SALIDA), respaldo/ datos.
 # Uso: set -a; . ./.env.cloud.nuevo; set +a; bash infra/eksctl/desplegar-eks.sh
 set -euo pipefail
 export MSYS_NO_PATHCONV=1 AWS_PAGER="" PYTHONIOENCODING=utf-8
@@ -18,7 +19,10 @@ ENI=$(aws ec2 describe-instances --region $R --instance-ids $IID --query 'Reserv
 aws ec2 associate-address --region $R --network-interface-id $ENI --allocation-id $EKS_EIP_ALLOC --allow-reassociation >/dev/null   # EKS agrega más interfaces: se usa la principal
 SG=$(aws eks describe-cluster --region $R --name comedor --query 'cluster.resourcesVpcConfig.clusterSecurityGroupId' --output text)
 for p in 80 443 3001 3002 3003 8080 8085 5678; do aws ec2 authorize-security-group-ingress --region $R --group-id $SG --protocol tcp --port $p --cidr 0.0.0.0/0 >/dev/null 2>&1 || true; done
-for ip in $COMENSALES_IP $PAGOS_IP; do aws ec2 authorize-security-group-ingress --region $R --group-id $SG --protocol tcp --port 4566 --cidr $ip/32 >/dev/null 2>&1 || true; done
+# LocalStack (4566) solo para Azure y GCP. Va la IP de SALIDA de cada nube (con la que sus pods llaman hacia afuera),
+# que NO es la del balanceador de su servicio (COMENSALES_IP / PAGOS_IP, que se usan para las URLs más abajo).
+# Se averigua desde un pod: kubectl exec deploy/pagos-tickets-service -- php -r 'echo file_get_contents("https://api.ipify.org");'
+for ip in $COMENSALES_IP_SALIDA $PAGOS_IP_SALIDA; do aws ec2 authorize-security-group-ingress --region $R --group-id $SG --protocol tcp --port 4566 --cidr $ip/32 >/dev/null 2>&1 || true; done
 
 kubectl apply -f infra/k8s/eks/storageclass.yaml
 kubectl create namespace comedor --dry-run=client -o yaml | kubectl apply -f -

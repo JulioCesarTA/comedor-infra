@@ -11,7 +11,7 @@ import sys
 
 EDGE_IP, COMENSALES_IP, PAGOS_IP = sys.argv[1:4]
 NS = "comedor"
-GHCR = "483549541027.dkr.ecr.us-west-2.amazonaws.com/comedor"   # ECR: los nodos de EKS lo leen con su rol, sin secretos
+GHCR = "006419716393.dkr.ecr.us-west-2.amazonaws.com/comedor"   # ECR: los nodos de EKS lo leen con su rol, sin secretos
 HOST = EDGE_IP
 COMENSALES_URL = f"http://{COMENSALES_IP}:8082"
 PAGOS_URL = f"http://{PAGOS_IP}:8083"
@@ -162,7 +162,7 @@ salida.append(despliegue("ia-ml-service", f"{GHCR}/ia-ml-service:latest", 8080, 
     "DYNAMODB_ENDPOINT": "https://dynamodb.us-west-2.amazonaws.com", "DYNAMODB_REGION": "us-west-2", "DYNAMODB_ACCESS_KEY_ID": S("dynamo-key"),
     "DYNAMODB_SECRET_ACCESS_KEY": S("dynamo-secret"), "COMENSALES_URL": COMENSALES_URL, "PAGOS_URL": PAGOS_URL, **AWS_PRUEBA,
     # S3 real (fotos de bandejas): credenciales propias de solo lectura/escritura sobre ese bucket
-    "S3_BANDEJAS_BUCKET": "comedor-uagrm-bandejas-483549541027", "S3_REGION": "us-west-2",
+    "S3_BANDEJAS_BUCKET": "comedor-uagrm-bandejas-006419716393", "S3_REGION": "us-west-2",
     "S3_ACCESS_KEY_ID": S("s3-key"), "S3_SECRET_ACCESS_KEY": S("s3-secret"),
     # Todas las notificaciones (Telegram y push) las envía n8n
     "N8N_URL": "http://n8n:5678", "N8N_CLAVE": S("n8n-clave")},

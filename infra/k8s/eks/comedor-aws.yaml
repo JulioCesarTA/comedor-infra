@@ -197,7 +197,7 @@ spec:
       enableServiceLinks: false   # evita que Kubernetes inyecte variables tipo DYNAMODB_LOCAL_PORT que rompen a localstack
       containers:
       - name: menu-inventario-service
-        image: 483549541027.dkr.ecr.us-west-2.amazonaws.com/comedor/menu-inventario-service:latest
+        image: 006419716393.dkr.ecr.us-west-2.amazonaws.com/comedor/menu-inventario-service:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
@@ -258,7 +258,7 @@ spec:
         fsGroup: 101
       containers:
       - name: ia-ml-service
-        image: 483549541027.dkr.ecr.us-west-2.amazonaws.com/comedor/ia-ml-service:latest
+        image: 006419716393.dkr.ecr.us-west-2.amazonaws.com/comedor/ia-ml-service:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
@@ -310,7 +310,7 @@ spec:
         - name: AWS_ENDPOINT_URL
           value: "http://localstack:4566"
         - name: S3_BANDEJAS_BUCKET
-          value: "comedor-uagrm-bandejas-483549541027"
+          value: "comedor-uagrm-bandejas-006419716393"
         - name: S3_REGION
           value: "us-west-2"
         - name: S3_ACCESS_KEY_ID
@@ -362,7 +362,7 @@ spec:
       enableServiceLinks: false   # evita que Kubernetes inyecte variables tipo DYNAMODB_LOCAL_PORT que rompen a localstack
       containers:
       - name: api-gateway
-        image: 483549541027.dkr.ecr.us-west-2.amazonaws.com/comedor/api-gateway:latest
+        image: 006419716393.dkr.ecr.us-west-2.amazonaws.com/comedor/api-gateway:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
@@ -418,7 +418,7 @@ spec:
       enableServiceLinks: false   # evita que Kubernetes inyecte variables tipo DYNAMODB_LOCAL_PORT que rompen a localstack
       containers:
       - name: graphql-gateway
-        image: 483549541027.dkr.ecr.us-west-2.amazonaws.com/comedor/graphql-gateway:latest
+        image: 006419716393.dkr.ecr.us-west-2.amazonaws.com/comedor/graphql-gateway:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 4000
@@ -586,7 +586,7 @@ spec:
       enableServiceLinks: false   # evita que Kubernetes inyecte variables tipo DYNAMODB_LOCAL_PORT que rompen a localstack
       containers:
       - name: shell
-        image: 483549541027.dkr.ecr.us-west-2.amazonaws.com/comedor/shell:latest
+        image: 006419716393.dkr.ecr.us-west-2.amazonaws.com/comedor/shell:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 80
@@ -621,7 +621,7 @@ spec:
       enableServiceLinks: false   # evita que Kubernetes inyecte variables tipo DYNAMODB_LOCAL_PORT que rompen a localstack
       containers:
       - name: backoffice-gestion
-        image: 483549541027.dkr.ecr.us-west-2.amazonaws.com/comedor/backoffice-gestion:latest
+        image: 006419716393.dkr.ecr.us-west-2.amazonaws.com/comedor/backoffice-gestion:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 80
@@ -656,7 +656,7 @@ spec:
       enableServiceLinks: false   # evita que Kubernetes inyecte variables tipo DYNAMODB_LOCAL_PORT que rompen a localstack
       containers:
       - name: portal-estudiante
-        image: 483549541027.dkr.ecr.us-west-2.amazonaws.com/comedor/portal-estudiante:latest
+        image: 006419716393.dkr.ecr.us-west-2.amazonaws.com/comedor/portal-estudiante:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 80
@@ -691,7 +691,7 @@ spec:
       enableServiceLinks: false   # evita que Kubernetes inyecte variables tipo DYNAMODB_LOCAL_PORT que rompen a localstack
       containers:
       - name: inteligencia-negocio
-        image: 483549541027.dkr.ecr.us-west-2.amazonaws.com/comedor/inteligencia-negocio:latest
+        image: 006419716393.dkr.ecr.us-west-2.amazonaws.com/comedor/inteligencia-negocio:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 3003
@@ -731,8 +731,8 @@ data:
       }
       server {
         listen 443 ssl;
-        ssl_certificate /etc/letsencrypt/live/ip-44.228.1.64/fullchain.pem;
-        ssl_certificate_key /etc/letsencrypt/live/ip-44.228.1.64/privkey.pem;
+        ssl_certificate /etc/letsencrypt/live/ip-100.20.63.125/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/ip-100.20.63.125/privkey.pem;
         ssl_protocols TLSv1.2 TLSv1.3;
         client_max_body_size 25m;
         location / {
@@ -751,8 +751,8 @@ data:
       }
       server {
         listen 3001 ssl;
-        ssl_certificate /etc/letsencrypt/live/ip-44.228.1.64/fullchain.pem;
-        ssl_certificate_key /etc/letsencrypt/live/ip-44.228.1.64/privkey.pem;
+        ssl_certificate /etc/letsencrypt/live/ip-100.20.63.125/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/ip-100.20.63.125/privkey.pem;
         ssl_protocols TLSv1.2 TLSv1.3;
         client_max_body_size 25m;
         location / {
@@ -771,8 +771,8 @@ data:
       }
       server {
         listen 3002 ssl;
-        ssl_certificate /etc/letsencrypt/live/ip-44.228.1.64/fullchain.pem;
-        ssl_certificate_key /etc/letsencrypt/live/ip-44.228.1.64/privkey.pem;
+        ssl_certificate /etc/letsencrypt/live/ip-100.20.63.125/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/ip-100.20.63.125/privkey.pem;
         ssl_protocols TLSv1.2 TLSv1.3;
         client_max_body_size 25m;
         location / {
@@ -791,8 +791,8 @@ data:
       }
       server {
         listen 3003 ssl;
-        ssl_certificate /etc/letsencrypt/live/ip-44.228.1.64/fullchain.pem;
-        ssl_certificate_key /etc/letsencrypt/live/ip-44.228.1.64/privkey.pem;
+        ssl_certificate /etc/letsencrypt/live/ip-100.20.63.125/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/ip-100.20.63.125/privkey.pem;
         ssl_protocols TLSv1.2 TLSv1.3;
         client_max_body_size 25m;
         location / {
@@ -811,8 +811,8 @@ data:
       }
       server {
         listen 8080 ssl;
-        ssl_certificate /etc/letsencrypt/live/ip-44.228.1.64/fullchain.pem;
-        ssl_certificate_key /etc/letsencrypt/live/ip-44.228.1.64/privkey.pem;
+        ssl_certificate /etc/letsencrypt/live/ip-100.20.63.125/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/ip-100.20.63.125/privkey.pem;
         ssl_protocols TLSv1.2 TLSv1.3;
         client_max_body_size 25m;
         location / {
@@ -831,8 +831,8 @@ data:
       }
       server {
         listen 8085 ssl;
-        ssl_certificate /etc/letsencrypt/live/ip-44.228.1.64/fullchain.pem;
-        ssl_certificate_key /etc/letsencrypt/live/ip-44.228.1.64/privkey.pem;
+        ssl_certificate /etc/letsencrypt/live/ip-100.20.63.125/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/ip-100.20.63.125/privkey.pem;
         ssl_protocols TLSv1.2 TLSv1.3;
         client_max_body_size 25m;
         location / {
@@ -851,8 +851,8 @@ data:
       }
       server {
         listen 5678 ssl;
-        ssl_certificate /etc/letsencrypt/live/ip-44.228.1.64/fullchain.pem;
-        ssl_certificate_key /etc/letsencrypt/live/ip-44.228.1.64/privkey.pem;
+        ssl_certificate /etc/letsencrypt/live/ip-100.20.63.125/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/ip-100.20.63.125/privkey.pem;
         ssl_protocols TLSv1.2 TLSv1.3;
         client_max_body_size 25m;
         location / {
@@ -895,7 +895,7 @@ spec:
       containers:
       - name: nginx
         image: nginx:1.27-alpine
-        command: ["sh", "-c", "until [ -f /etc/letsencrypt/live/ip-44.228.1.64/fullchain.pem ]; do sleep 5; done; nginx -g 'daemon off;' & while sleep 6h; do nginx -s reload; done"]
+        command: ["sh", "-c", "until [ -f /etc/letsencrypt/live/ip-100.20.63.125/fullchain.pem ]; do sleep 5; done; nginx -g 'daemon off;' & while sleep 6h; do nginx -s reload; done"]
         volumeMounts:
         - { name: conf, mountPath: /etc/nginx/nginx.conf, subPath: nginx.conf }
         - { name: certs, mountPath: /etc/letsencrypt }
@@ -926,7 +926,7 @@ spec:
       containers:
       - name: certbot
         image: certbot/certbot:latest
-        args: ["certonly", "--standalone", "--ip-address", "44.228.1.64", "--preferred-profile", "shortlived", "--cert-name", "ip-44.228.1.64",
+        args: ["certonly", "--standalone", "--ip-address", "100.20.63.125", "--preferred-profile", "shortlived", "--cert-name", "ip-100.20.63.125",
                "--non-interactive", "--agree-tos", "--register-unsafely-without-email"]
         volumeMounts:
         - { name: certs, mountPath: /etc/letsencrypt }

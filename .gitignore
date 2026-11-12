@@ -62,3 +62,7 @@ CREDENCIALES.local.md
 respaldo/
 
 deploy/ec2/realm/
+
+# Claves reales: nunca al repo
+.creds_nueva/
+respaldo.zip

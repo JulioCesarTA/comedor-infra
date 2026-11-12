@@ -12,13 +12,19 @@ Uso (desde comedor-infra):
     python infra/datos/cargar_vision_demo.py --plato plato-pollo-frito   # solo ese plato
     python infra/datos/cargar_vision_demo.py --pollo --rehacer   # SOLO la carpeta im/pollo: bandeja llena + 10 bandejas,
                                                                  # y compara cada sector con im/pollo/etiquetas.csv
+    python infra/datos/cargar_vision_demo.py --rehacer --masivo   # volumen realista, coherente con el historial sembrado:
+        # por servicio se fotografía el 90 % de las reservas CONSUMIDAS de ese plato ese día (base de Azure), y el
+        # desperdicio medio de cada plato baja con su popularidad en sembrar_historico.py (más pedido -> menos sobras).
+        # Correr DESPUÉS de sembrar_historico.py y ANTES de --pollo (sin --rehacer), que suma sus 10 bandejas.
 """
+import importlib.util
 import io
 import json
 import os
 import subprocess
 import sys
 import time
+from collections import Counter
 from pathlib import Path
 
 import numpy as np
@@ -63,6 +69,9 @@ COMIDO_SINTETICO = [0.20, 0.45, 0.70, 0.90]
 COMIDO_EXTRA = [0.97, 0.95, 0.93, 0.90, 0.88, 0.85, 0.80, 0.75]
 EXTRA = "--extra" in sys.argv
 SOLO = sys.argv[sys.argv.index("--plato") + 1] if "--plato" in sys.argv else None
+MASIVO = "--masivo" in sys.argv
+FRACCION_FOTOGRAFIADA = 0.90      # --masivo: de las bandejas consumidas en el servicio, cuántas se fotografían
+BANDEJAS_POLLO = 10               # las que suma después --pollo (im/pollo) sobre el mismo plato
 
 
 REHACER = "--rehacer" in sys.argv
@@ -121,6 +130,39 @@ print(JSON.stringify(r.map(x => [x._id, x.fecha.toISOString().slice(0,10), x.tur
     out = out.replace("menu_inventario> ", "")
     linea = [l for l in out.splitlines() if l.strip().startswith("[")][-1]
     return {p: (f, t) for p, f, t in json.loads(linea)}
+
+
+def popularidad() -> dict[str, float]:
+    """Popularidad de cada plato, tomada del mismo seed que generó las reservas (una sola fuente de verdad)."""
+    spec = importlib.util.spec_from_file_location("seed", RAIZ / "infra/datos/sembrar_historico.py")
+    seed = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(seed)
+    return {f"plato-{pid}": pop for lista in (seed.ALMUERZO, seed.DESAYUNO, seed.CENA) for pid, pop, _ in lista}
+
+
+def consumidas(fechas: dict[str, tuple[str, str]]) -> dict[tuple[str, str], int]:
+    """{(platoId, menuId): reservas consumidas} del último servicio de cada plato, leídas de la base de Azure."""
+    menus = sorted({f"hist-{f.replace('-', '')}-{t[0]}" for f, t in fechas.values()})
+    sql = ("SELECT \"platoId\", \"menuId\", count(*) FROM reservas WHERE estado = 'consumida' AND \"menuId\" IN ("
+           + ",".join(f"'{m}'" for m in menus) + ") GROUP BY 1, 2;")
+    out = correr(["kubectl", "-n", "comedor", "exec", "-i", "deploy/postgres-comensales", "--", "sh", "-c",
+                  'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -F "|"'],
+                 entrada=sql.encode(), env={"KUBECONFIG": str((RAIZ / "respaldo/kube-aks.yaml").resolve())})
+    filas = (l.split("|") for l in out.splitlines() if l.count("|") == 2)
+    return {(p, m): int(n) for p, m, n in filas}
+
+
+def desperdicio_medio(pop: float) -> float:
+    """Fracción que queda en la bandeja según la popularidad del seed: 1.35 (el más pedido) -> 14 %, 0.55 -> 38 %."""
+    return min(0.40, max(0.12, 0.38 - (pop - 0.55) / 0.80 * 0.24))
+
+
+def comido_realista(pop: float, n: int, semilla: int) -> list[float]:
+    """Fracción comida de n bandejas. El sobrante sigue una Beta con media desperdicio_medio(pop): la mayoría casi termina
+    el plato y unos pocos dejan mucho, como en un comedor real."""
+    w, k = desperdicio_medio(pop), 5.0
+    sobrante = np.clip(np.random.default_rng(semilla).beta(w * k, (1 - w) * k, n), 0.02, 0.98)
+    return [float(1 - s) for s in sobrante]
 
 
 def jpeg(img: Image.Image, calidad=88) -> bytes:
@@ -217,12 +259,29 @@ def main():
         return pollo()
     fechas = ultimo_servicio()
     print(f"platos con fecha de ultimo servicio: {len(fechas)}")
-    if SECO:
+    if SECO and not MASIVO:
         for p, ref, reales, nombres in pares():
             print(f"  {p:26s} ref #{ref:2d} reales {reales} ultimo {fechas.get(p)} sectores {nombres}")
         return
-    if REHACER:
+    if REHACER and not SECO:
         borrar_demo(sorted({p for p, *_ in pares()}))
+
+    presupuesto: dict[tuple[str, int], int] = {}          # --masivo: (plato, ref) -> bandejas sintéticas a generar
+    pop: dict[str, float] = {}
+    if MASIVO:
+        pop, cons = popularidad(), consumidas(fechas)
+        refs_por_plato = Counter(p for p, *_ in pares())
+        print("\nPLAN --masivo (plato · servicio · consumidas · fotografiadas · sobrante medio esperado)")
+        for plato, i_ref, reales, _ in pares():
+            f, t = fechas.get(plato, ("", ""))
+            n_cons = cons.get((plato, f"hist-{f.replace('-', '')}-{t[:1]}"), 0)
+            fotos = int(round(FRACCION_FOTOGRAFIADA * n_cons)) - (BANDEJAS_POLLO if plato == "plato-pollo-frito" else 0)
+            presupuesto[(plato, i_ref)] = max(0, fotos // refs_por_plato[plato] - len(reales))
+            print(f"  {plato:26s} {f} {t:9s} {n_cons:4d} {presupuesto[(plato, i_ref)] + len(reales):4d}"
+                  f"   {desperdicio_medio(pop.get(plato, 1.0)) * 100:4.0f} %")
+        print(f"  total bandejas a cargar: {sum(presupuesto.values()) + sum(len(r) for _, _, r, _ in pares())}\n")
+        if SECO:
+            return
 
     pf = subprocess.Popen(["kubectl", "-n", "comedor", "port-forward", "deploy/ia-ml-service", f"{PUERTO}:8080"],
                           env={**os.environ, **AWS}, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -242,7 +301,9 @@ def main():
             secs = ", ".join(f"{s['nombre']}({s['zonas']})" for s in ref.get("sectores") or [])
             print(f"REF {plato} #{i_ref} {fecha} {turno} -> id {ref['id']} sectores: {secs}")
             registradas.append((plato, i_ref, reales, ref))
-            for k, comido in enumerate(COMIDO_SINTETICO + (COMIDO_EXTRA if EXTRA else [])):
+            fracciones = (comido_realista(pop.get(plato, 1.0), presupuesto[(plato, i_ref)], semilla=1000 + i_ref) if MASIVO
+                          else COMIDO_SINTETICO + (COMIDO_EXTRA if EXTRA else []))
+            for k, comido in enumerate(fracciones):
                 sint = bandeja_sintetica(img, ref["mascara"], comido, semilla=hash((plato, i_ref, k)) % 10000)
                 rb = requests.post(f"{API}/ml/vision/bandeja", files={"file": (f"sint_{plato}_{k}.jpg", jpeg(sint), "image/jpeg")},
                                    data={"ref_id": ref["id"]}, timeout=300)

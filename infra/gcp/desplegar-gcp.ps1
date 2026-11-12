@@ -23,9 +23,16 @@ $edge = Leer .env.cloud.nuevo EKS_EDGE_IP
 (Get-Content infra\k8s\gcp\pagos-tickets-service\pagos.yaml -Raw).Replace("__EKS_EDGE_IP__", $edge) | K apply -f -
 
 K -n comedor rollout status deploy/postgres-pagos --timeout=300s
-# datos: se recrea el esquema y se carga el respaldo
+# datos: el respaldo solo se carga en una base VACÍA (redesplegar nunca debe borrar pagos reales).
+# Para forzar la restauración a propósito: $env:RESTAURAR = "1" antes de correr el script.
+# '--' va entre comillas: sin ellas PowerShell lo toma como fin de parámetros y no le llega a kubectl.
 $pg = (K -n comedor get pod -l app=postgres-pagos -o name | Select-Object -First 1).Replace("pod/", "")
-K -n comedor exec $pg -- sh -c 'psql -q -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"' | Out-Null
-Get-Content respaldo\pagos_tickets.sql -Raw | K -n comedor exec -i $pg -- sh -c 'psql -q -U "$POSTGRES_USER" -d "$POSTGRES_DB"' 2>&1 | Out-Null
+$filas = (K -n comedor exec $pg '--' sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "select count(*) from pagos" 2>/dev/null') -replace '[^0-9]', ''
+if ([int]("0" + $filas) -gt 0 -and $env:RESTAURAR -ne "1") {
+    Write-Host "La base ya tiene $filas pagos: NO se restaura el respaldo (forzar con `$env:RESTAURAR = '1')."
+} else {
+    K -n comedor exec $pg '--' sh -c 'psql -q -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"' | Out-Null
+    Get-Content respaldo\pagos_tickets.sql -Raw | K -n comedor exec -i $pg '--' sh -c 'psql -q -U "$POSTGRES_USER" -d "$POSTGRES_DB"' 2>&1 | Out-Null
+}
 K -n comedor rollout status deploy/pagos-tickets-service --timeout=300s
 K -n comedor get svc pagos-tickets-service
